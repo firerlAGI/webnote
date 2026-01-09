@@ -1,0 +1,1051 @@
+import { FastifyInstance, FastifyRequest } from 'fastify'
+import bcrypt from 'bcrypt'
+import { prisma } from '../server'
+
+// User type for JWT payload
+interface UserPayload {
+  id: number
+  username: string
+}
+
+// Authentication middleware
+const authenticate = async (request: FastifyRequest) => {
+  try {
+    await request.jwtVerify()
+  } catch (error) {
+    throw new Error('Unauthorized')
+  }
+}
+
+// Authorization middleware for resource ownership
+const authorizeResource = async (request: FastifyRequest, resourceType: 'note' | 'folder' | 'review', resourceId: number) => {
+  const userId = (request.user as UserPayload).id
+  
+  let resource: { user_id: number } | null = null
+  switch (resourceType) {
+    case 'note':
+      resource = await prisma.note.findUnique({ where: { id: resourceId }, select: { user_id: true } })
+      break
+    case 'folder':
+      resource = await prisma.folder.findUnique({ where: { id: resourceId }, select: { user_id: true } })
+      break
+    case 'review':
+      resource = await prisma.review.findUnique({ where: { id: resourceId }, select: { user_id: true } })
+      break
+    default:
+      throw new Error('Invalid resource type')
+  }
+  
+  if (!resource) {
+    throw new Error('Resource not found')
+  }
+  
+  if (resource.user_id !== userId) {
+    throw new Error('Forbidden')
+  }
+}
+
+export function routes(app: FastifyInstance) {
+  // Public routes
+  app.get('/', async () => {
+    return { hello: 'world' }
+  })
+
+  // Auth routes
+  app.post('/auth/register', async (request, reply) => {
+    const { username, email, password } = request.body as { username: string; email: string; password: string }
+    
+    if (!username || !email || !password) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: { OR: [{ username }, { email }] }
+      })
+      
+      if (existingUser) {
+        return reply.status(400).send({ success: false, error: 'Username or email already exists' })
+      }
+      
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10)
+      
+      // Create user
+      const user = await prisma.user.create({
+        data: {
+          username,
+          email,
+          password: hashedPassword
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          created_at: true,
+          updated_at: true
+        }
+      })
+      
+      // Generate JWT token
+      const token = app.jwt.sign({ id: user.id, username: user.username })
+      
+      return reply.status(201).send({
+        success: true,
+        data: { user, token },
+        message: 'User registered successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.post('/auth/login', async (request, reply) => {
+    const { email, password } = request.body as { email: string; password: string }
+    
+    if (!email || !password) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Find user by email
+      const user = await prisma.user.findUnique({ where: { email } })
+      
+      if (!user) {
+        return reply.status(401).send({ success: false, error: 'Invalid email or password' })
+      }
+      
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password)
+      
+      if (!isPasswordValid) {
+        return reply.status(401).send({ success: false, error: 'Invalid email or password' })
+      }
+      
+      // Generate JWT token
+      const token = app.jwt.sign({ id: user.id, username: user.username })
+      
+      // Return user data without password
+      const userData = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: { user: userData, token },
+        message: 'Login successful'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.post('/auth/forgot-password', async (request, reply) => {
+    const { email } = request.body as { email: string }
+    
+    if (!email) {
+      return reply.status(400).send({ success: false, error: 'Missing email' })
+    }
+    
+    try {
+      // Find user by email
+      const user = await prisma.user.findUnique({ where: { email } })
+      
+      if (!user) {
+        // Return success even if user doesn't exist to prevent email enumeration
+        return reply.status(200).send({
+          success: true,
+          message: 'If an account with this email exists, a reset link will be sent'
+        })
+      }
+      
+      // Generate reset token (in a real app, you would send this to the user's email)
+      const resetToken = app.jwt.sign({ id: user.id }, { expiresIn: '1h' })
+      
+      // For demo purposes, we'll just return the token
+      return reply.status(200).send({
+        success: true,
+        data: { resetToken },
+        message: 'Reset token generated'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.post('/auth/reset-password', async (request, reply) => {
+    const { token, password } = request.body as { token: string; password: string }
+    
+    if (!token || !password) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Verify token
+      const decoded = app.jwt.verify(token) as { id: number }
+      
+      // Find user
+      const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+      
+      if (!user) {
+        return reply.status(404).send({ success: false, error: 'User not found' })
+      }
+      
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(password, 10)
+      
+      // Update password
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { password: hashedPassword }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Password reset successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Protected routes
+  app.get('/protected', { preHandler: authenticate }, async (request) => {
+    return { message: 'This is a protected route', user: request.user }
+  })
+
+  // User routes
+  app.get('/user/me', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const userId = (request.user as UserPayload).id
+      
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          created_at: true,
+          updated_at: true
+        }
+      })
+      
+      if (!user) {
+        return reply.status(404).send({ success: false, error: 'User not found' })
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: user,
+        message: 'User information retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.put('/user/me', { preHandler: authenticate }, async (request, reply) => {
+    const { username, email } = request.body as { username?: string; email?: string }
+    const userId = (request.user as UserPayload).id
+    
+    try {
+      // Check if username or email is already taken by another user
+      if (username || email) {
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { username: username || '' },
+              { email: email || '' }
+            ],
+            NOT: { id: userId }
+          }
+        })
+        
+        if (existingUser) {
+          return reply.status(400).send({ success: false, error: 'Username or email already exists' })
+        }
+      }
+      
+      // Update user
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          ...(username && { username }),
+          ...(email && { email })
+        },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          created_at: true,
+          updated_at: true
+        }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        data: updatedUser,
+        message: 'User information updated successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Note routes
+  app.post('/notes', { preHandler: authenticate }, async (request, reply) => {
+    const { title, content, folder_id, is_pinned } = request.body as { 
+      title: string; 
+      content: string; 
+      folder_id?: number; 
+      is_pinned?: boolean 
+    }
+    
+    if (!title || !content) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Validate folder ownership if provided
+      if (folder_id) {
+        const folder = await prisma.folder.findUnique({ where: { id: folder_id } })
+        if (!folder || folder.user_id !== (request.user as UserPayload).id) {
+          return reply.status(400).send({ success: false, error: 'Invalid folder' })
+        }
+      }
+      
+      // Create note
+      const note = await prisma.note.create({
+        data: {
+          user_id: (request.user as UserPayload).id,
+          title,
+          content,
+          folder_id,
+          is_pinned: is_pinned || false
+        },
+        include: {
+          folder: true
+        }
+      })
+      
+      return reply.status(201).send({
+        success: true,
+        data: note,
+        message: 'Note created successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/notes', { preHandler: authenticate }, async (request, reply) => {
+    const { 
+      search, 
+      folder_id, 
+      is_pinned, 
+      sort_by = 'updated_at', 
+      sort_order = 'desc',
+      page = 1,
+      limit = 20
+    } = request.query as {
+      search?: string;
+      folder_id?: string;
+      is_pinned?: string;
+      sort_by?: string;
+      sort_order?: string;
+      page?: string;
+      limit?: string;
+    }
+    
+    try {
+      const where = {
+        user_id: (request.user as UserPayload).id,
+        ...(folder_id && { folder_id: parseInt(folder_id) }),
+        ...(is_pinned !== undefined && { is_pinned: is_pinned === 'true' }),
+        ...(search && {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { content: { contains: search, mode: 'insensitive' } }
+          ]
+        })
+      }
+      
+      const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString())
+      
+      const [notes, total] = await Promise.all([
+        prisma.note.findMany({
+          where,
+          include: {
+            folder: true
+          },
+          orderBy: {
+            [sort_by]: sort_order
+          },
+          skip,
+          take: parseInt(limit.toString())
+        }),
+        prisma.note.count({ where })
+      ])
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          notes,
+          pagination: {
+            page: parseInt(page.toString()),
+            limit: parseInt(limit.toString()),
+            total,
+            totalPages: Math.ceil(total / parseInt(limit.toString()))
+          }
+        },
+        message: 'Notes retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/notes/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'note', parseInt(id))
+      
+      // Get note
+      const note = await prisma.note.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          folder: true
+        }
+      })
+      
+      if (!note) {
+        return reply.status(404).send({ success: false, error: 'Note not found' })
+      }
+      
+      // Update last_accessed_at
+      await prisma.note.update({
+        where: { id: parseInt(id) },
+        data: { last_accessed_at: new Date() }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        data: note,
+        message: 'Note retrieved successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Note not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.put('/notes/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { title, content, folder_id, is_pinned } = request.body as { 
+      title?: string; 
+      content?: string; 
+      folder_id?: number; 
+      is_pinned?: boolean 
+    }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'note', parseInt(id))
+      
+      // Validate folder ownership if provided
+      if (folder_id !== undefined) {
+        if (folder_id === null) {
+          // Allow removing from folder
+        } else {
+          const folder = await prisma.folder.findUnique({ where: { id: folder_id } })
+          if (!folder || folder.user_id !== (request.user as UserPayload).id) {
+            return reply.status(400).send({ success: false, error: 'Invalid folder' })
+          }
+        }
+      }
+      
+      // Update note
+      const note = await prisma.note.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(content !== undefined && { content }),
+          ...(folder_id !== undefined && { folder_id }),
+          ...(is_pinned !== undefined && { is_pinned })
+        },
+        include: {
+          folder: true
+        }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        data: note,
+        message: 'Note updated successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Note not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.delete('/notes/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'note', parseInt(id))
+      
+      // Delete note
+      await prisma.note.delete({
+        where: { id: parseInt(id) }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Note deleted successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Note not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.post('/notes/batch-delete', { preHandler: authenticate }, async (request, reply) => {
+    const { ids } = request.body as { ids: number[] }
+    
+    if (!ids || !Array.isArray(ids)) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Check ownership for all notes
+      for (const id of ids) {
+        await authorizeResource(request, 'note', id)
+      }
+      
+      // Delete notes
+      await prisma.note.deleteMany({
+        where: {
+          id: { in: ids },
+          user_id: (request.user as UserPayload).id
+        }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Notes deleted successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'One or more notes not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.post('/notes/batch-pin', { preHandler: authenticate }, async (request, reply) => {
+    const { ids, is_pinned } = request.body as { ids: number[]; is_pinned: boolean }
+    
+    if (!ids || !Array.isArray(ids) || is_pinned === undefined) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Check ownership for all notes
+      for (const id of ids) {
+        await authorizeResource(request, 'note', id)
+      }
+      
+      // Update notes
+      await prisma.note.updateMany({
+        where: {
+          id: { in: ids },
+          user_id: (request.user as UserPayload).id
+        },
+        data: { is_pinned }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Notes updated successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'One or more notes not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Folder routes
+  app.post('/folders', { preHandler: authenticate }, async (request, reply) => {
+    const { name } = request.body as { name: string }
+    
+    if (!name) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Create folder
+      const folder = await prisma.folder.create({
+        data: {
+          user_id: (request.user as UserPayload).id,
+          name
+        }
+      })
+      
+      return reply.status(201).send({
+        success: true,
+        data: folder,
+        message: 'Folder created successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/folders', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      // Get all folders for user
+      const folders = await prisma.folder.findMany({
+        where: { user_id: (request.user as UserPayload).id },
+        include: {
+          notes: {
+            select: { id: true }
+          }
+        },
+        orderBy: {
+          created_at: 'desc'
+        }
+      })
+      
+      // Calculate note count for each folder
+      const foldersWithNoteCount = folders.map((folder: any) => ({
+        ...folder,
+        note_count: folder.notes.length
+      }))
+      
+      return reply.status(200).send({
+        success: true,
+        data: foldersWithNoteCount,
+        message: 'Folders retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/folders/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'folder', parseInt(id))
+      
+      // Get folder
+      const folder = await prisma.folder.findUnique({
+        where: { id: parseInt(id) },
+        include: {
+          notes: true
+        }
+      })
+      
+      if (!folder) {
+        return reply.status(404).send({ success: false, error: 'Folder not found' })
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: folder,
+        message: 'Folder retrieved successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Folder not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.put('/folders/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { name } = request.body as { name: string }
+    
+    if (!name) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'folder', parseInt(id))
+      
+      // Update folder
+      const folder = await prisma.folder.update({
+        where: { id: parseInt(id) },
+        data: { name }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        data: folder,
+        message: 'Folder updated successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Folder not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.delete('/folders/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'folder', parseInt(id))
+      
+      // Check if folder has notes
+      const folder = await prisma.folder.findUnique({
+        where: { id: parseInt(id) },
+        include: { notes: true }
+      })
+      
+      if (folder && folder.notes.length > 0) {
+        // Update notes to remove folder reference
+        await prisma.note.updateMany({
+          where: { folder_id: parseInt(id) },
+          data: { folder_id: null }
+        })
+      }
+      
+      // Delete folder
+      await prisma.folder.delete({
+        where: { id: parseInt(id) }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Folder deleted successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Folder not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Review routes
+  app.post('/reviews', { preHandler: authenticate }, async (request, reply) => {
+    const { date, content, mood, achievements, improvements, plans, template_id } = request.body as { 
+      date: string; 
+      content: string; 
+      mood?: number; 
+      achievements?: string[]; 
+      improvements?: string[]; 
+      plans?: string[]; 
+      template_id?: number 
+    }
+    
+    if (!date || !content) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Create review
+      const review = await prisma.review.create({
+        data: {
+          user_id: (request.user as UserPayload).id,
+          date: new Date(date),
+          content,
+          mood,
+          achievements: achievements ? { type: 'json', value: JSON.stringify(achievements) } : null,
+          improvements: improvements ? { type: 'json', value: JSON.stringify(improvements) } : null,
+          plans: plans ? { type: 'json', value: JSON.stringify(plans) } : null,
+          template_id
+        }
+      })
+      
+      return reply.status(201).send({
+        success: true,
+        data: review,
+        message: 'Review created successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/reviews', { preHandler: authenticate }, async (request, reply) => {
+    const { 
+      start_date, 
+      end_date, 
+      mood,
+      page = 1,
+      limit = 20
+    } = request.query as {
+      start_date?: string;
+      end_date?: string;
+      mood?: string;
+      page?: string;
+      limit?: string;
+    }
+    
+    try {
+      const where = {
+        user_id: (request.user as UserPayload).id,
+        ...(start_date && { date: { gte: new Date(start_date) } }),
+        ...(end_date && { date: { lte: new Date(end_date) } }),
+        ...(mood && { mood: parseInt(mood) })
+      }
+      
+      const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString())
+      
+      const [reviews, total] = await Promise.all([
+        prisma.review.findMany({
+          where,
+          orderBy: {
+            date: 'desc'
+          },
+          skip,
+          take: parseInt(limit.toString())
+        }),
+        prisma.review.count({ where })
+      ])
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          reviews,
+          pagination: {
+            page: parseInt(page.toString()),
+            limit: parseInt(limit.toString()),
+            total,
+            totalPages: Math.ceil(total / parseInt(limit.toString()))
+          }
+        },
+        message: 'Reviews retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/reviews/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'review', parseInt(id))
+      
+      // Get review
+      const review = await prisma.review.findUnique({
+        where: { id: parseInt(id) }
+      })
+      
+      if (!review) {
+        return reply.status(404).send({ success: false, error: 'Review not found' })
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: review,
+        message: 'Review retrieved successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Review not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.put('/reviews/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { date, content, mood, achievements, improvements, plans, template_id } = request.body as { 
+      date?: string; 
+      content?: string; 
+      mood?: number; 
+      achievements?: string[]; 
+      improvements?: string[]; 
+      plans?: string[]; 
+      template_id?: number 
+    }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'review', parseInt(id))
+      
+      // Update review
+      const review = await prisma.review.update({
+        where: { id: parseInt(id) },
+        data: {
+          ...(date && { date: new Date(date) }),
+          ...(content !== undefined && { content }),
+          ...(mood !== undefined && { mood }),
+          ...(achievements !== undefined && { achievements: { type: 'json', value: JSON.stringify(achievements) } }),
+          ...(improvements !== undefined && { improvements: { type: 'json', value: JSON.stringify(improvements) } }),
+          ...(plans !== undefined && { plans: { type: 'json', value: JSON.stringify(plans) } }),
+          ...(template_id !== undefined && { template_id })
+        }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        data: review,
+        message: 'Review updated successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Review not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.delete('/reviews/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    
+    try {
+      // Check ownership
+      await authorizeResource(request, 'review', parseInt(id))
+      
+      // Delete review
+      await prisma.review.delete({
+        where: { id: parseInt(id) }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'Review deleted successfully'
+      })
+    } catch (error) {
+      if ((error as Error).message === 'Resource not found') {
+        return reply.status(404).send({ success: false, error: 'Review not found' })
+      }
+      if ((error as Error).message === 'Forbidden') {
+        return reply.status(403).send({ success: false, error: 'Forbidden' })
+      }
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/reviews/stats', { preHandler: authenticate }, async (request, reply) => {
+    const { start_date, end_date } = request.query as {
+      start_date?: string;
+      end_date?: string;
+    }
+    
+    try {
+      const where = {
+        user_id: (request.user as UserPayload).id,
+        ...(start_date && { date: { gte: new Date(start_date) } }),
+        ...(end_date && { date: { lte: new Date(end_date) } })
+      }
+      
+      // Get reviews with mood
+      const reviews = await prisma.review.findMany({
+        where,
+        select: {
+          date: true,
+          mood: true
+        },
+        orderBy: {
+          date: 'asc'
+        }
+      })
+      
+      // Calculate stats
+      const total = reviews.length
+      const averageMood = total > 0 
+        ? reviews.reduce((sum: number, review: { mood: number | null }) => sum + (review.mood || 0), 0) / total 
+        : 0
+      
+      const periodStats = reviews.map((review: { date: Date; mood: number | null }) => ({
+        date: review.date.toISOString().split('T')[0],
+        mood: review.mood || 0
+      }))
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          total,
+          averageMood,
+          periodStats
+        },
+        message: 'Review stats retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+}

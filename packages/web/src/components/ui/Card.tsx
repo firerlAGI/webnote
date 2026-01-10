@@ -35,7 +35,7 @@ const Card: CardComponent = ({
   className = '',
   ...props
 }) => {
-  const baseClasses = 'rounded-lg bg-white';
+  const baseClasses = 'rounded-lg bg-white transition-shadow duration-200 touch-manipulation';
 
   const shadowClasses = {
     none: 'shadow-none',
@@ -52,7 +52,7 @@ const Card: CardComponent = ({
     lg: 'p-6',
   };
 
-  const borderClasses = border ? 'border border-gray-200' : '';
+  const borderClasses = border ? 'border border-gray-200 dark:border-gray-700' : '';
 
   const allClasses = `${baseClasses} ${shadowClasses[shadow]} ${paddingClasses[padding]} ${borderClasses} ${className}`;
 

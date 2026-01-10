@@ -1,31 +1,32 @@
 import { Button, Card } from '../components/ui';
 
+// Home page component
 const Home = () => {
   return (
     <div className="space-y-6">
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-8 text-white">
-        <h1 className="text-3xl font-bold mb-2">欢迎回来，用户！</h1>
-        <p className="mb-6 opacity-90">继续你的笔记和复盘之旅</p>
-        <div className="flex space-x-4">
-          <Button variant="white" size="lg">
+      <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 md:p-8 text-white">
+        <h1 className="text-2xl md:text-3xl font-bold mb-2">欢迎回来，用户！</h1>
+        <p className="mb-4 md:mb-6 opacity-90 text-sm md:text-base">继续你的笔记和复盘之旅</p>
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+          <Button variant="white" size="lg" className="w-full sm:w-auto">
             创建笔记
           </Button>
           <Button
             variant="outline"
             size="lg"
-            className="text-white border-white hover:bg-white/10"
+            className="text-white border-white hover:bg-white/10 w-full sm:w-auto"
           >
             今日复盘
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mr-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <Card className="p-4 md:p-6">
+          <div className="flex items-center mb-3 md:mb-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center mr-3 md:mr-4">
               <svg
-                className="h-6 w-6 text-blue-600 dark:text-blue-400"
+                className="h-5 w-5 md:h-6 md:w-6 text-blue-600 dark:text-blue-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -38,21 +39,21 @@ const Home = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">笔记管理</h2>
+            <h2 className="text-lg md:text-xl font-semibold">笔记管理</h2>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-gray-600 dark:text-gray-300 mb-3 md:mb-4 text-sm md:text-base">
             创建、编辑和组织你的笔记，支持Markdown格式
           </p>
-          <Button variant="primary" asChild>
+          <Button variant="primary" asChild className="w-full sm:w-auto">
             <a href="/notes">查看笔记</a>
           </Button>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center mr-4">
+        <Card className="p-4 md:p-6">
+          <div className="flex items-center mb-3 md:mb-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center mr-3 md:mr-4">
               <svg
-                className="h-6 w-6 text-green-600 dark:text-green-400"
+                className="h-5 w-5 md:h-6 md:w-6 text-green-600 dark:text-green-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -65,21 +66,21 @@ const Home = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">每日复盘</h2>
+            <h2 className="text-lg md:text-xl font-semibold">每日复盘</h2>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-gray-600 dark:text-gray-300 mb-3 md:mb-4 text-sm md:text-base">
             记录每日成就、改进点和计划，跟踪个人成长
           </p>
-          <Button variant="primary" asChild>
+          <Button variant="primary" asChild className="w-full sm:w-auto">
             <a href="/reviews">查看复盘</a>
           </Button>
         </Card>
 
-        <Card className="p-6">
-          <div className="flex items-center mb-4">
-            <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center mr-4">
+        <Card className="p-4 md:p-6">
+          <div className="flex items-center mb-3 md:mb-4">
+            <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center mr-3 md:mr-4">
               <svg
-                className="h-6 w-6 text-purple-600 dark:text-purple-400"
+                className="h-5 w-5 md:h-6 md:w-6 text-purple-600 dark:text-purple-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -92,18 +93,18 @@ const Home = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold">文件夹</h2>
+            <h2 className="text-lg md:text-xl font-semibold">文件夹</h2>
           </div>
-          <p className="text-gray-600 dark:text-gray-300 mb-4">
+          <p className="text-gray-600 dark:text-gray-300 mb-3 md:mb-4 text-sm md:text-base">
             分类组织你的笔记，建立清晰的知识体系
           </p>
-          <Button variant="primary" asChild>
+          <Button variant="primary" asChild className="w-full sm:w-auto">
             <a href="/folders">管理文件夹</a>
           </Button>
         </Card>
       </div>
 
-      <Card className="p-6">
+      <Card className="p-4 md:p-6">
         <h2 className="text-xl font-semibold mb-4">最近活动</h2>
         <div className="space-y-4">
           <div className="flex items-start">

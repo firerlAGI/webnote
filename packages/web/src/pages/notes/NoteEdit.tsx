@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useNotes } from '../../contexts/NotesContext';
 import { Button, Card, Input, Alert, Loader } from '../../components/ui';
+import { MarkdownEditor } from '../../components/markdown';
+import { useAutoSave } from '../../hooks/useAutoSave';
 
 const NoteEdit = () => {
   const { id } = useParams<{ id: string }>();
@@ -14,6 +16,8 @@ const NoteEdit = () => {
     is_pinned: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -31,6 +35,7 @@ const NoteEdit = () => {
           folder_id: note.folder_id,
           is_pinned: note.is_pinned,
         });
+        setLastSavedAt(new Date());
       }
     }
   };
@@ -47,6 +52,51 @@ const NoteEdit = () => {
     }));
   };
 
+  const handleContentChange = (content: string) => {
+    setFormData((prev) => ({ ...prev, content }));
+  };
+
+  // 手动保存
+  const handleManualSave = useCallback(async () => {
+    if (!id || isSubmitting) return;
+
+    setIsSubmitting(true);
+    clearError();
+
+    try {
+      await updateNote(Number(id), formData);
+      setLastSavedAt(new Date());
+    } catch (err) {
+      console.error('Save note error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [id, formData, isSubmitting, clearError, updateNote]);
+
+  // 自动保存
+  const handleAutoSave = useCallback(async () => {
+    if (!id || isAutoSaving || isSubmitting) return;
+
+    setIsAutoSaving(true);
+
+    try {
+      await updateNote(Number(id), formData);
+      setLastSavedAt(new Date());
+    } catch (err) {
+      console.error('Auto save error:', err);
+    } finally {
+      setIsAutoSaving(false);
+    }
+  }, [id, formData, isAutoSaving, isSubmitting, updateNote]);
+
+  // 使用自动保存钩子
+  useAutoSave({
+    value: JSON.stringify(formData),
+    onSave: handleAutoSave,
+    delay: 3000,
+    enabled: true,
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -55,6 +105,7 @@ const NoteEdit = () => {
     try {
       if (id) {
         const updatedNote = await updateNote(Number(id), formData);
+        setLastSavedAt(new Date());
         navigate(`/notes/${updatedNote.id}`);
       }
     } catch (err) {
@@ -96,9 +147,42 @@ const NoteEdit = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-6xl mx-auto">
       <Card className="p-8">
-        <h1 className="text-2xl font-bold mb-6">编辑笔记</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">编辑笔记</h1>
+          <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+            {isAutoSaving ? (
+              <span className="flex items-center">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-500"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                自动保存中...
+              </span>
+            ) : lastSavedAt ? (
+              <span>已保存于 {lastSavedAt.toLocaleTimeString()}</span>
+            ) : (
+              <span>未保存</span>
+            )}
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -120,16 +204,14 @@ const NoteEdit = () => {
 
           <div>
             <label htmlFor="content" className="block text-sm font-medium mb-2">
-              内容
+              内容 (支持 Markdown)
             </label>
-            <textarea
-              id="content"
-              name="content"
+            <MarkdownEditor
               value={formData.content}
-              onChange={handleChange}
+              onChange={handleContentChange}
+              onSave={handleManualSave}
               placeholder="开始编写笔记内容...（支持 Markdown 格式）"
-              required
-              className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-md dark:bg-gray-800 dark:text-white min-h-64"
+              minHeight="400px"
             />
           </div>
 
@@ -150,18 +232,23 @@ const NoteEdit = () => {
             </label>
           </div>
 
-          <div className="flex justify-end space-x-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Button variant="outline" onClick={handleCancel}>
-              取消
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              loading={isSubmitting}
-              disabled={isSubmitting}
-            >
-              保存修改
-            </Button>
+          <div className="flex justify-between items-center pt-4 border-t border-gray-200 dark:border-gray-700">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              快捷键: <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-xs">Ctrl+S</kbd> 保存
+            </div>
+            <div className="flex space-x-4">
+              <Button variant="outline" onClick={handleCancel}>
+                取消
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                loading={isSubmitting}
+                disabled={isSubmitting}
+              >
+                完成编辑
+              </Button>
+            </div>
           </div>
         </form>
       </Card>

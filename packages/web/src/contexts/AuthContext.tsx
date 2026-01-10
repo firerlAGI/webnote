@@ -50,10 +50,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadAuth = async () => {
       try {
-        if (typeof sessionStorage !== 'undefined') {
-          const storedToken = sessionStorage.getItem('token');
-          const storedUser = sessionStorage.getItem('user');
-          const tokenExpiry = sessionStorage.getItem('tokenExpiry');
+        if (typeof localStorage !== 'undefined') {
+          const storedToken = localStorage.getItem('token');
+          const storedUser = localStorage.getItem('user');
+          const tokenExpiry = localStorage.getItem('tokenExpiry');
 
           // 检查令牌是否过期
           if (storedToken && storedUser && tokenExpiry) {
@@ -64,9 +64,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setIsAuthenticated(true);
             } else {
               // 令牌过期，清除存储
-              sessionStorage.removeItem('token');
-              sessionStorage.removeItem('user');
-              sessionStorage.removeItem('tokenExpiry');
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+              localStorage.removeItem('tokenExpiry');
             }
           }
         }
@@ -104,12 +104,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setToken(response.data.token);
         setIsAuthenticated(true);
 
-        if (typeof sessionStorage !== 'undefined') {
+        if (typeof localStorage !== 'undefined') {
           // 设置令牌过期时间为24小时后
           const expiry = new Date().getTime() + 24 * 60 * 60 * 1000;
-          sessionStorage.setItem('token', response.data.token);
-          sessionStorage.setItem('user', JSON.stringify(response.data.user));
-          sessionStorage.setItem('tokenExpiry', expiry.toString());
+          localStorage.setItem('token', response.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+          localStorage.setItem('tokenExpiry', expiry.toString());
         }
       } else {
         // 处理API返回的错误
@@ -149,12 +149,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setToken(response.data.token);
           setIsAuthenticated(true);
 
-          if (typeof sessionStorage !== 'undefined') {
+          if (typeof localStorage !== 'undefined') {
             // 设置令牌过期时间为24小时后
             const expiry = new Date().getTime() + 24 * 60 * 60 * 1000;
-            sessionStorage.setItem('token', response.data.token);
-            sessionStorage.setItem('user', JSON.stringify(response.data.user));
-            sessionStorage.setItem('tokenExpiry', expiry.toString());
+            localStorage.setItem('token', response.data.token);
+            localStorage.setItem('user', JSON.stringify(response.data.user));
+            localStorage.setItem('tokenExpiry', expiry.toString());
           }
         } else {
           // 处理API返回的错误
@@ -180,10 +180,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setToken(null);
     setIsAuthenticated(false);
 
-    if (typeof sessionStorage !== 'undefined') {
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('user');
-      sessionStorage.removeItem('tokenExpiry');
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('tokenExpiry');
     }
   }, []);
 

@@ -13,6 +13,7 @@ interface ThemeContextType {
   isDark: boolean;
 }
 
+// Theme context for managing light/dark mode
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {

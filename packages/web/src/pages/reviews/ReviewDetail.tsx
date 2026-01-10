@@ -83,7 +83,7 @@ const ReviewDetail = () => {
             复盘 - {formatDate(review.date)}
           </h1>
           <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-            <span>心情指数：{review.mood}/10</span>
+            <span>心情指数：{review.mood ?? 'N/A'}/10</span>
             <span>{formatDate(review.updated_at)}</span>
           </div>
         </div>

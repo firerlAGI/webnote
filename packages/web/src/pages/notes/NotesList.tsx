@@ -55,12 +55,12 @@ const NotesList = () => {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
         <div>
-          <h1 className="text-2xl font-bold mb-1">我的笔记</h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <h1 className="text-xl md:text-2xl font-bold mb-1">我的笔记</h1>
+          <p className="text-gray-600 dark:text-gray-400 text-sm md:text-base">
             共 {notes.length} 条笔记
           </p>
         </div>
-        <div className="flex space-x-4">
+        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
           <div className="relative flex-1 max-w-md">
             <Input
               type="text"
@@ -83,14 +83,14 @@ const NotesList = () => {
               />
             </svg>
           </div>
-          <Button variant="primary" onClick={handleCreateNote}>
+          <Button variant="primary" onClick={handleCreateNote} className="w-full sm:w-auto">
             创建笔记
           </Button>
         </div>
       </div>
 
       {notes.length === 0 ? (
-        <Card className="p-8 text-center">
+        <Card className="p-6 md:p-8 text-center">
           <svg
             className="h-16 w-16 text-gray-400 mx-auto mb-4"
             fill="none"

@@ -23,13 +23,13 @@ const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const baseClasses =
-    'block w-full rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+    'block w-full rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent touch-manipulation';
 
   const sizeClasses = {
-    small: 'px-3 py-1 text-sm',
-    medium: 'px-4 py-2 text-base',
-    large: 'px-6 py-3 text-lg',
-    lg: 'px-6 py-3 text-lg',
+    small: 'px-3 py-2 text-sm min-h-[36px]',
+    medium: 'px-4 py-2 text-base min-h-[44px]',
+    large: 'px-6 py-3 text-lg min-h-[48px]',
+    lg: 'px-6 py-3 text-lg min-h-[48px]',
   };
 
   const widthClasses = fullWidth ? 'w-full' : '';

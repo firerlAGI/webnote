@@ -1,13 +1,14 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { Button } from '../components/ui';
+import { Button, MobileNavigation } from '../components/ui';
 
 const MainLayout = () => {
   const { logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const isActive = useCallback(
     (path: string) => {
@@ -16,12 +17,71 @@ const MainLayout = () => {
     [location.pathname]
   );
 
+  const navItems = [
+    {
+      path: '/',
+      label: '首页',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+          />
+        </svg>
+      ),
+    },
+    {
+      path: '/notes',
+      label: '笔记',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      ),
+    },
+    {
+      path: '/folders',
+      label: '文件夹',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+          />
+        </svg>
+      ),
+    },
+    {
+      path: '/reviews',
+      label: '复盘',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          />
+        </svg>
+      ),
+    },
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col pb-16 md:pb-0">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow-sm">
+      <header className="bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center space-x-4 md:space-x-8">
             <Link
               to="/"
               className="text-xl font-bold text-blue-600 dark:text-blue-400"
@@ -71,7 +131,7 @@ const MainLayout = () => {
               </Link>
             </nav>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 md:space-x-4">
             <div className="relative hidden md:block">
               <input
                 type="text"
@@ -96,7 +156,7 @@ const MainLayout = () => {
               variant="ghost"
               size="sm"
               onClick={toggleTheme}
-              className="rounded-full"
+              className="rounded-full min-w-[44px] min-h-[44px]"
             >
               {theme === 'light' ? (
                 <svg
@@ -128,7 +188,7 @@ const MainLayout = () => {
                 </svg>
               )}
             </Button>
-            <Button variant="ghost" size="sm" className="rounded-full" asChild>
+            <Button variant="ghost" size="sm" className="rounded-full min-w-[44px] min-h-[44px]" asChild>
               <Link to="/profile">
                 <svg
                   className="h-5 w-5"
@@ -149,7 +209,7 @@ const MainLayout = () => {
               variant="ghost"
               size="sm"
               onClick={logout}
-              className="rounded-full"
+              className="rounded-full min-w-[44px] min-h-[44px]"
             >
               <svg
                 className="h-5 w-5"
@@ -169,13 +229,16 @@ const MainLayout = () => {
         </div>
       </header>
 
+      {/* Mobile Bottom Navigation */}
+      <MobileNavigation items={navItems} />
+
       {/* Main Content */}
-      <main className="flex-1 container mx-auto px-4 py-6">
+      <main className="flex-1 container mx-auto px-4 py-6 mb-0 md:mb-0">
         <Outlet />
       </main>
 
       {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
+      <footer className="hidden md:block bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-4">
         <div className="container mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
           <p>© 2026 WebNote. All rights reserved.</p>
         </div>

@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { Review, ReviewStats } from '@webnote/shared/types';
 import api from '@webnote/shared/api';
+import { handleApiError, logError } from '../utils/errorHandler';
 
 /**
  * ReviewsContextType 定义了评论上下文的类型接口
@@ -72,8 +73,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err: any) {
       // 处理网络错误或其他异常
-      console.error('Fetch reviews error:', err);
-      setError(err.message || 'Failed to fetch reviews: Network error');
+      const standardError = handleApiError(err);
+      logError(standardError, 'Fetch Reviews');
+      setError(standardError.message);
     } finally {
       setIsLoading(false);
     }
@@ -100,8 +102,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err: any) {
       // 处理网络错误或其他异常
-      console.error('Get review by ID error:', err);
-      setError(err.message || 'Failed to fetch review: Network error');
+      const standardError = handleApiError(err);
+      logError(standardError, 'Get Review by ID');
+      setError(standardError.message);
       return null;
     } finally {
       setIsLoading(false);
@@ -134,10 +137,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (err: any) {
         // 处理网络错误或其他异常
-        console.error('Create review error:', err);
-        const errorMessage =
-          err.message || 'Failed to create review: Network error';
-        setError(errorMessage);
+        const standardError = handleApiError(err);
+        logError(standardError, 'Create Review');
+        setError(standardError.message);
         throw err;
       } finally {
         setIsLoading(false);
@@ -176,10 +178,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (err: any) {
         // 处理网络错误或其他异常
-        console.error('Update review error:', err);
-        const errorMessage =
-          err.message || 'Failed to update review: Network error';
-        setError(errorMessage);
+        const standardError = handleApiError(err);
+        logError(standardError, 'Update Review');
+        setError(standardError.message);
         throw err;
       } finally {
         setIsLoading(false);
@@ -214,8 +215,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
         }
       } catch (err: any) {
         // 处理网络错误或其他异常
-        console.error('Delete review error:', err);
-        setError(err.message || 'Failed to delete review: Network error');
+        const standardError = handleApiError(err);
+        logError(standardError, 'Delete Review');
+        setError(standardError.message);
       } finally {
         setIsLoading(false);
       }
@@ -242,8 +244,9 @@ export const ReviewsProvider = ({ children }: { children: ReactNode }) => {
       }
     } catch (err: any) {
       // 处理网络错误或其他异常
-      console.error('Fetch review stats error:', err);
-      setError(err.message || 'Failed to fetch review stats: Network error');
+      const standardError = handleApiError(err);
+      logError(standardError, 'Fetch Review Stats');
+      setError(standardError.message);
     } finally {
       setIsLoading(false);
     }

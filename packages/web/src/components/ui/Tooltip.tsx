@@ -23,7 +23,7 @@ const Tooltip: React.FC<TooltipProps> = ({
   ...props
 }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [timeoutId, setTimeoutId] = useState<number | null>(null);
+  const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const handleMouseEnter = () => {
     if (enabled) {

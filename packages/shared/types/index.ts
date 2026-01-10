@@ -61,7 +61,7 @@ export interface NoteFilters {
 
 export interface ReviewStats {
   total: number
-  averageMood: number
+  averageMood: number | null
   periodStats: {
     date: string
     mood: number

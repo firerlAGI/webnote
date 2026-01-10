@@ -30,11 +30,45 @@ body {
   transition:
     background-color 0.3s,
     color 0.3s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  overscroll-behavior-y: none;
 }
 
 body.dark {
   background-color: var(--background-dark);
   color: var(--text-dark);
+}
+
+/* Touch optimization */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+input,
+textarea,
+a {
+  touch-action: manipulation;
+}
+
+/* Safe area support for notched devices */
+@supports (padding: env(safe-area-inset-top)) {
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
 }
 
 code {
@@ -250,7 +284,7 @@ code {
 /* Responsive styles */
 @media (max-width: 768px) {
   .container {
-    padding: 0 0.5rem;
+    padding: 0 0.75rem;
   }
 
   .flex {
@@ -261,5 +295,44 @@ code {
   .space-x-4 > * + * {
     margin-left: 0;
     margin-top: 0.5rem;
+  }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 640px) {
+  .container {
+    padding: 0 1rem;
+  }
+
+  /* Ensure text is readable on mobile */
+  body {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  /* Optimize card spacing */
+  .card {
+    margin-bottom: 0.75rem;
+  }
+
+  /* Prevent horizontal scroll */
+  html,
+  body {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* Ensure buttons are tap-friendly */
+  button,
+  .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 375px) {
+  .container {
+    padding: 0 0.75rem;
   }
 }

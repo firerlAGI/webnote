@@ -1,6 +1,10 @@
 import { FastifyInstance, FastifyRequest } from 'fastify'
 import bcrypt from 'bcrypt'
 import { prisma } from '../server'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+import { backupService, BackupInfo, RestoreOptions } from '../services/backup/BackupService'
 
 // User type for JWT payload
 interface UserPayload {
@@ -42,6 +46,45 @@ const authorizeResource = async (request: FastifyRequest, resourceType: 'note' |
   
   if (resource.user_id !== userId) {
     throw new Error('Forbidden')
+  }
+}
+
+// ESM __dirname workaround
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+// Allowed image file types
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml']
+
+// Maximum file size (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+// Helper function to validate image file
+const validateImageFile = (mimetype: string, fileSize: number): { valid: boolean; error?: string } => {
+  if (!ALLOWED_IMAGE_TYPES.includes(mimetype)) {
+    return { valid: false, error: 'Invalid file type. Only JPEG, PNG, GIF, WebP, and SVG are allowed.' }
+  }
+  
+  if (fileSize > MAX_FILE_SIZE) {
+    return { valid: false, error: 'File size exceeds 10MB limit.' }
+  }
+  
+  return { valid: true }
+}
+
+// Helper function to generate unique filename
+const generateFilename = (originalName: string): string => {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substring(2, 15)
+  const ext = path.extname(originalName)
+  return `${timestamp}-${random}${ext}`
+}
+
+// Helper function to ensure uploads directory exists
+const ensureUploadsDirectory = (): void => {
+  const uploadsDir = path.join(__dirname, '..', '..', 'uploads')
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true })
   }
 }
 
@@ -221,6 +264,61 @@ export function routes(app: FastifyInstance) {
   // Protected routes
   app.get('/protected', { preHandler: authenticate }, async (request) => {
     return { message: 'This is a protected route', user: request.user }
+  })
+
+  // Image upload route
+  app.post('/upload/image', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const data = await (request as any).file()
+      
+      if (!data) {
+        return reply.status(400).send({
+          success: false,
+          error: 'No file uploaded'
+        })
+      }
+      
+      // Validate file type and size
+      const validation = validateImageFile(data.mimetype, data.file.bytesRead)
+      if (!validation.valid) {
+        return reply.status(400).send({
+          success: false,
+          error: validation.error
+        })
+      }
+      
+      // Ensure uploads directory exists
+      ensureUploadsDirectory()
+      
+      // Generate unique filename
+      const filename = generateFilename(data.filename)
+      const uploadsDir = path.join(__dirname, '..', '..', 'uploads')
+      const filepath = path.join(uploadsDir, filename)
+      
+      // Write file to disk
+      const buffer = await data.toBuffer()
+      fs.writeFileSync(filepath, buffer)
+      
+      // Generate URL for the uploaded image
+      const imageUrl = `${request.protocol}://${request.hostname}${process.env.PORT ? ':' + process.env.PORT : ''}/uploads/${filename}`
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          filename,
+          url: imageUrl,
+          mimetype: data.mimetype,
+          size: data.file.bytesRead
+        },
+        message: 'Image uploaded successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({
+        success: false,
+        error: 'Internal server error'
+      })
+    }
   })
 
   // User routes
@@ -1046,6 +1144,126 @@ export function routes(app: FastifyInstance) {
     } catch (error) {
       app.log.error(error)
       return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Backup routes
+  app.post('/backups', { preHandler: authenticate }, async (request, reply) => {
+    const { type = 'manual' } = request.body as { type?: 'manual' | 'auto' }
+    const userId = (request.user as UserPayload).id
+
+    try {
+      const backup = await backupService.createBackup(userId, type)
+
+      return reply.status(201).send({
+        success: true,
+        data: backup,
+        message: 'Backup created successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to create backup' })
+    }
+  })
+
+  app.get('/backups', { preHandler: authenticate }, async (request, reply) => {
+    const userId = (request.user as UserPayload).id
+
+    try {
+      const backups = await backupService.getBackupList(userId)
+
+      return reply.status(200).send({
+        success: true,
+        data: backups,
+        message: 'Backups retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to retrieve backups' })
+    }
+  })
+
+  app.get('/backups/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = (request.user as UserPayload).id
+
+    try {
+      const backupData = await backupService.getBackupDetail(userId, id)
+
+      if (!backupData) {
+        return reply.status(404).send({ success: false, error: 'Backup not found' })
+      }
+
+      return reply.status(200).send({
+        success: true,
+        data: backupData,
+        message: 'Backup detail retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to retrieve backup detail' })
+    }
+  })
+
+  app.post('/backups/:id/restore', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { overwriteConflicts = false, restoreDeleted = true } = request.body as RestoreOptions
+    const userId = (request.user as UserPayload).id
+
+    try {
+      await backupService.restoreBackup(userId, id, {
+        overwriteConflicts,
+        restoreDeleted,
+      })
+
+      return reply.status(200).send({
+        success: true,
+        message: 'Backup restored successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to restore backup' })
+    }
+  })
+
+  app.delete('/backups/:id', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = (request.user as UserPayload).id
+
+    try {
+      const success = await backupService.deleteBackup(userId, id)
+
+      if (!success) {
+        return reply.status(404).send({ success: false, error: 'Backup not found' })
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: 'Backup deleted successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to delete backup' })
+    }
+  })
+
+  app.get('/backups/:id/download', { preHandler: authenticate }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const userId = (request.user as UserPayload).id
+
+    try {
+      const fileData = await backupService.downloadBackup(userId, id)
+
+      if (!fileData) {
+        return reply.status(404).send({ success: false, error: 'Backup not found' })
+      }
+
+      reply.type('application/json')
+      reply.header('Content-Disposition', `attachment; filename="backup_${id}.json"`)
+      return reply.send(fileData)
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to download backup' })
     }
   })
 }

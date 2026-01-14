@@ -42,6 +42,7 @@ export type RetentionType = 'daily' | 'weekly' | 'monthly' | 'permanent';
 class OSSConfigManager {
   private config: OSSConfig;
   private client: OSS | null = null;
+  private isConfigured: boolean;
 
   constructor() {
     // 从环境变量加载配置
@@ -53,15 +54,21 @@ class OSSConfigManager {
       backupPrefix: process.env.OSS_BACKUP_PREFIX || 'backups',
     };
 
-    // 验证必要配置
-    this.validateConfig();
+    // 验证必要配置（在开发环境中可以是可选的）
+    this.isConfigured = !!(this.config.accessKeyId && this.config.accessKeySecret && this.config.bucket);
+    
+    if (process.env.NODE_ENV !== 'production' && !this.isConfigured) {
+      console.warn('OSS配置不完整，备份功能将被禁用');
+    } else if (process.env.NODE_ENV === 'production' && !this.isConfigured) {
+      this.validateConfig();
+    }
   }
 
   /**
    * 验证配置是否完整
    */
   private validateConfig(): void {
-    if (!this.config.accessKeyId || !this.config.accessKeySecret || !this.config.bucket) {
+    if (!this.isConfigured) {
       throw new Error('OSS配置不完整，请检查环境变量');
     }
   }
@@ -69,7 +76,11 @@ class OSSConfigManager {
   /**
    * 获取OSS客户端（单例模式）
    */
-  public getClient(): OSS {
+  public getClient(): OSS | null {
+    if (!this.isConfigured) {
+      return null;
+    }
+    
     if (!this.client) {
       this.client = new OSS({
         region: this.config.region,
@@ -80,6 +91,13 @@ class OSSConfigManager {
       });
     }
     return this.client;
+  }
+
+  /**
+   * 检查是否已配置
+   */
+  public isOSSConfigured(): boolean {
+    return this.isConfigured;
   }
 
   /**

@@ -8,6 +8,7 @@ import fastifyStatic from '@fastify/static'
 import { PrismaClient } from '@prisma/client'
 import { routes } from './api/routes'
 import { initializeSyncService, shutdownSyncService } from './services/sync/integration'
+import { initializeBackupService, shutdownBackupService } from './services/backup/integration'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
@@ -15,6 +16,9 @@ const prisma = new PrismaClient()
 const app = Fastify({
   logger: true
 })
+
+// Attach prisma to app instance for use in services
+;(app as any).prisma = prisma
 
 // ESM __dirname workaround
 const __filename = fileURLToPath(import.meta.url)
@@ -84,7 +88,10 @@ app.register(fastifyStatic, {
 app.register(routes, { prefix: '/api' })
 
 // Initialize sync service
-const syncService = initializeSyncService(app, app.log)
+const { syncService, queueService, conflictService } = initializeSyncService(app, app.log)
+
+// Initialize backup service
+const { backupService, scheduler } = initializeBackupService(app, app.log)
 
 // Health check
 app.get('/health', async () => {
@@ -105,8 +112,11 @@ const gracefulShutdown = async (signal: string) => {
   app.log.info(`${signal} signal received: starting graceful shutdown`)
 
   try {
+    // Shutdown backup service
+    await shutdownBackupService({ backupService, scheduler }, app.log)
+
     // Shutdown sync service
-    await shutdownSyncService(syncService, app.log)
+    await shutdownSyncService({ syncService, queueService, conflictService }, app.log)
 
     // Close server
     await app.close()
@@ -117,7 +127,7 @@ const gracefulShutdown = async (signal: string) => {
     app.log.info('Graceful shutdown completed')
     process.exit(0)
   } catch (error) {
-    app.log.error('Error during graceful shutdown:', error)
+    app.log.error({ error: error instanceof Error ? error.message : String(error) }, 'Error during graceful shutdown')
     process.exit(1)
   }
 }
@@ -136,4 +146,4 @@ app.listen({ port: Number(PORT) }, (err) => {
   app.log.info(`Server listening on port ${PORT}`)
 })
 
-export { app, prisma, syncService }
+export { app, prisma, syncService, queueService, conflictService, backupService, scheduler }

@@ -5,6 +5,8 @@
 
 import { FastifyInstance } from 'fastify'
 import { SyncService } from './SyncService'
+import { QueueService } from './QueueService'
+import { ConflictService } from './ConflictService'
 import { registerSyncRoutes } from './routes'
 
 /**
@@ -14,7 +16,29 @@ import { registerSyncRoutes } from './routes'
  * @param logger - 日志记录器
  * @returns 同步服务实例
  */
-export function initializeSyncService(app: FastifyInstance, logger: any): SyncService {
+export function initializeSyncService(app: FastifyInstance, logger: any): { syncService: SyncService; queueService: QueueService; conflictService: ConflictService } {
+  // 创建队列服务实例
+  const queueService = new QueueService(
+    (app as any).prisma,
+    logger,
+    {
+      maxQueueSize: 1000,
+      defaultMaxRetries: 3,
+      retentionDays: 30,
+      batchSize: 20,
+      processingTimeout: 30000,
+      alertThreshold: 100,
+      cleanupInterval: 3600000, // 1小时
+      alertCheckInterval: 60000 // 1分钟
+    }
+  )
+
+  // 创建冲突服务实例
+  const conflictService = new ConflictService(
+    (app as any).prisma,
+    logger
+  )
+
   // 创建同步服务实例
   const syncService = new SyncService(
     (app as any).prisma,
@@ -29,6 +53,9 @@ export function initializeSyncService(app: FastifyInstance, logger: any): SyncSe
       heartbeatTimeout: 60000
     }
   )
+
+  // 初始化冲突服务
+  syncService.initializeConflictService()
 
   // 初始化降级管理器
   syncService.initializeFallbackManager(
@@ -52,7 +79,7 @@ export function initializeSyncService(app: FastifyInstance, logger: any): SyncSe
   )
 
   // 注册同步路由
-  registerSyncRoutes(app, syncService)
+  registerSyncRoutes(app, syncService, conflictService, queueService)
 
   // 注册WebSocket路由
   app.get('/api/sync/ws', {
@@ -62,20 +89,37 @@ export function initializeSyncService(app: FastifyInstance, logger: any): SyncSe
     handleWebSocketConnection(connection.socket, request, syncService)
   })
 
+  // 添加队列告警回调
+  queueService.addAlertCallback((alert) => {
+    logger.warn({
+      alert_id: alert.alert_id,
+      alert_type: alert.alert_type,
+      message: alert.message,
+      severity: alert.severity,
+      user_id: alert.user_id,
+      data: alert.data
+    }, 'Queue alert triggered')
+  })
+
   logger.info('Sync service initialized successfully')
 
-  return syncService
+  return { syncService, queueService, conflictService }
 }
 
 /**
  * 优雅关闭同步服务
  *
- * @param syncService - 同步服务实例
+ * @param services - 服务对象
  * @param logger - 日志记录器
  */
-export async function shutdownSyncService(syncService: SyncService, logger: any): Promise<void> {
+export async function shutdownSyncService(services: { syncService: SyncService; queueService: QueueService; conflictService: ConflictService }, logger: any): Promise<void> {
   try {
-    await syncService.shutdown()
+    // 关闭队列服务
+    await services.queueService.shutdown()
+    logger.info('Queue service shutdown successfully')
+
+    // 关闭同步服务
+    await services.syncService.shutdown()
     logger.info('Sync service shutdown successfully')
   } catch (error) {
     logger.error('Error shutting down sync service:', error)

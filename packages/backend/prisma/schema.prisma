@@ -31,7 +31,7 @@ model Note {
   content_hash    String?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
-  
+
   user            User      @relation(fields: [user_id], references: [id])
   folder          Folder?   @relation(fields: [folder_id], references: [id])
 
@@ -40,6 +40,8 @@ model Note {
   @@index([user_id, is_pinned, updated_at(sort: Desc)])
   @@index([title])
   @@index([user_id, content_hash])
+  @@index([user_id, last_accessed_at(sort: Desc)], name: "idx_note_user_last_accessed")
+  @@index([updated_at(sort: Desc)], name: "idx_note_updated")
 }
 
 model Folder {
@@ -94,4 +96,103 @@ model Backup {
   @@index([user_id, created_at(sort: Desc)])
   @@index([user_id, retention_type])
   @@index([retention_type, retention_until])
+}
+
+model SyncSession {
+  id            String   @id @default(cuid())
+  user_id       Int
+  device_id     String
+  status        String   @default("pending") // pending, running, paused, completed, failed
+  phase         String   @default("init") // init, pull, push, conflict_resolution, cleanup
+  progress_total       Int      @default(0)
+  progress_completed    Int      @default(0)
+  progress_failed      Int      @default(0)
+  progress_percentage  Float    @default(0)
+  current_operation     String?
+  error_message         String?
+  started_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  completed_at          DateTime?
+  operations            Json?
+  conflicts             Json?
+  notes_created         Int      @default(0)
+  notes_updated         Int      @default(0)
+  notes_deleted         Int      @default(0)
+  folders_created       Int      @default(0)
+  folders_updated       Int      @default(0)
+  folders_deleted       Int      @default(0)
+  reviews_created       Int      @default(0)
+  reviews_updated       Int      @default(0)
+  reviews_deleted       Int      @default(0)
+
+  @@index([user_id, started_at(sort: Desc)])
+  @@index([user_id, device_id, started_at(sort: Desc)])
+  @@index([status, updated_at(sort: Desc)])
+  @@index([started_at(sort: Desc)], name: "idx_sync_session_created")
+}
+
+model SyncOperation {
+  id             String   @id @default(cuid())
+  sync_session_id String
+  user_id        Int
+  type           String // create, update, delete
+  entity_type    String // note, folder, review
+  entity_id      Int?
+  status         String @default("pending") // pending, processing, completed, failed
+  error          String?
+  created_at     DateTime @default(now())
+  completed_at   DateTime?
+  data           Json?
+
+  @@index([sync_session_id])
+  @@index([user_id, status])
+  @@index([entity_type, entity_id])
+  @@index([status, created_at(sort: Desc)])
+}
+
+model SyncStatistics {
+  id                  Int      @id @default(autoincrement())
+  user_id             Int      @unique
+  total_syncs         Int      @default(0)
+  successful_syncs    Int      @default(0)
+  failed_syncs        Int      @default(0)
+  last_sync_time      DateTime?
+  total_notes_synced  Int      @default(0)
+  total_folders_synced Int     @default(0)
+  total_reviews_synced Int     @default(0)
+  total_bytes_transferred BigInt @default(0)
+  average_sync_duration Float   @default(0)
+  updated_at          DateTime @updatedAt
+
+  @@index([user_id])
+}
+
+model SyncQueue {
+  id             String   @id @default(cuid())
+  user_id        Int
+  device_id      String
+  client_id      String
+  operation_type String   // create, update, delete
+  entity_type    String   // note, folder, review
+  entity_data    Json     @default("{}")
+  entity_id      Int?
+  priority       String   @default("medium") // high, medium, low
+  retry_count    Int      @default(0)
+  max_retries    Int      @default(3)
+  status         String   @default("pending") // pending, processing, completed, failed
+  error          String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+  scheduled_at   DateTime?
+  completed_at   DateTime?
+  started_at     DateTime?
+
+  @@index([user_id, status])
+  @@index([user_id, priority])
+  @@index([status, priority, created_at])
+  @@index([entity_type])
+  @@index([created_at])
+  @@index([scheduled_at])
+  @@index([completed_at])
+  @@index([user_id, priority, status])
 }

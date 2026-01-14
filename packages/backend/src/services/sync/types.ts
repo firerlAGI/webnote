@@ -13,8 +13,108 @@ import {
   EntityType,
   SyncOperationType,
   Version,
-  ClientSyncState
+  ClientSyncState,
+  OperationResult
 } from '@webnote/shared/types/sync'
+
+/**
+ * 字段差异
+ */
+export interface FieldDiff {
+  /** 字段名 */
+  field_name: string
+  /** 客户端值 */
+  client_value: any
+  /** 服务器值 */
+  server_value: any
+  /** 差异类型 */
+  diff_type: 'added' | 'removed' | 'modified' | 'same'
+}
+
+/**
+ * 获取同步状态响应
+ */
+export interface GetSyncStatusResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 同步状态列表 */
+  data?: {
+    /** 当前活跃的同步 */
+    active_syncs: SyncStatusDetail[]
+    /** 客户端最新同步状态 */
+    client_state?: ClientSyncState
+    /** 所有同步历史（最近N条） */
+    sync_history: SyncStatusDetail[]
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 同步状态详情
+ */
+export interface SyncStatusDetail {
+  /** 同步ID */
+  sync_id: string
+  /** 客户端ID */
+  client_id: string
+  /** 用户ID */
+  user_id: number
+  /** 同步状态 */
+  status: SyncStatus
+  /** 开始时间 */
+  start_time: string
+  /** 结束时间 */
+  end_time?: string
+  /** 总操作数 */
+  total_operations: number
+  /** 已完成操作数 */
+  completed_operations: number
+  /** 成功操作数 */
+  successful_operations: number
+  /** 失败操作数 */
+  failed_operations: number
+  /** 冲突数 */
+  conflicts_count: number
+  /** 已解决冲突数 */
+  resolved_conflicts: number
+  /** 进度（0-100） */
+  progress: number
+  /** 当前同步的实体类型 */
+  entity_types: EntityType[]
+  /** 错误信息（如果失败） */
+  error?: string
+}
+
+/**
+ * 获取同步队列响应
+ */
+export interface GetSyncQueueResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 队列数据 */
+  data?: {
+    /** 队列中的操作 */
+    operations: QueuedSyncOperation[]
+    /** 总数 */
+    total: number
+    /** 分页信息 */
+    pagination: {
+      page: number
+      limit: number
+      total_pages: number
+    }
+    /** 队列统计 */
+    stats: {
+      pending: number
+      processing: number
+      completed: number
+      failed: number
+    }
+  }
+  /** 错误信息 */
+  error?: string
+}
 
 // ============================================================================
 // WebSocket 消息类型
@@ -788,4 +888,768 @@ export interface ExitFallbackResponse {
   }
   /** 错误信息 */
   error?: string
+}
+
+// ============================================================================
+// 同步API接口类型（T3-BE-02）
+// ============================================================================
+
+/**
+ * 增量同步拉取请求
+ */
+export interface SyncPullRequest {
+  /** 上次同步时间 */
+  last_sync_time: string
+  /** 设备ID */
+  device_id: string
+  /** 数据类型 */
+  data_types: Array<'notes' | 'folders' | 'reviews'>
+  /** 游标（用于分页） */
+  cursor?: string
+  /** 批次大小 */
+  batch_size?: number
+  /** 是否压缩传输 */
+  compress?: boolean
+}
+
+/**
+ * 增量同步拉取响应
+ */
+export interface SyncPullResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 同步ID */
+  sync_id: string
+  /** 服务器时间 */
+  server_time: string
+  /** 是否有更多数据 */
+  has_more: boolean
+  /** 下一游标 */
+  next_cursor?: string
+  /** 数据 */
+  data: {
+    notes?: Array<{
+      id: number
+      user_id: number
+      title: string
+      content: string
+      folder_id: number | null
+      is_pinned: boolean
+      content_hash: string | null
+      created_at: string
+      updated_at: string
+      last_accessed_at: string
+      version?: number
+    }>
+    folders?: Array<{
+      id: number
+      user_id: number
+      name: string
+      created_at: string
+      updated_at: string
+      version?: number
+    }>
+    reviews?: Array<{
+      id: number
+      user_id: number
+      date: string
+      content: string
+      mood: number | null
+      achievements: any
+      improvements: any
+      plans: any
+      template_id: number | null
+      created_at: string
+      updated_at: string
+      version?: number
+    }>
+  }
+  /** 删除的实体 */
+  deleted: {
+    notes?: number[]
+    folders?: number[]
+    reviews?: number[]
+  }
+  /** 统计信息 */
+  stats: {
+    notes_count: number
+    folders_count: number
+    reviews_count: number
+    total_bytes: number
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 增量同步推送请求
+ */
+export interface SyncPushRequest {
+  /** 设备ID */
+  device_id: string
+  /** 变更列表 */
+  changes: Array<{
+    /** 类型 */
+    type: 'note' | 'folder' | 'review'
+    /** 操作 */
+    action: 'create' | 'update' | 'delete'
+    /** 数据 */
+    data: Record<string, any>
+    /** 实体ID（更新/删除时需要） */
+    entity_id?: number
+    /** 版本（更新时需要） */
+    version?: number
+    /** 临时ID（创建时可选） */
+    temp_id?: string
+  }>
+  /** 是否压缩传输 */
+  compress?: boolean
+}
+
+/**
+ * 增量同步推送响应
+ */
+export interface SyncPushResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 同步ID */
+  sync_id: string
+  /** 服务器时间 */
+  server_time: string
+  /** 操作结果 */
+  results: Array<{
+    /** 临时ID（如果有） */
+    temp_id?: string
+    /** 实体ID */
+    entity_id?: number
+    /** 是否成功 */
+    success: boolean
+    /** 新版本号 */
+    new_version?: number
+    /** 错误信息 */
+    error?: string
+    /** 冲突信息（如果有） */
+    conflict?: {
+      conflict_id: string
+      entity_type: string
+      entity_id: number
+      server_version: number
+      client_version: number
+    }
+  }>
+  /** 冲突数量 */
+  conflicts_count: number
+  /** 统计信息 */
+  stats: {
+    created: number
+    updated: number
+    deleted: number
+    failed: number
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 全量同步请求
+ */
+export interface FullSyncRequest {
+  /** 数据类型 */
+  data_types: Array<'notes' | 'folders' | 'reviews'>
+  /** 游标（用于分页） */
+  cursor?: string
+  /** 批次大小 */
+  batch_size?: number
+  /** 是否压缩传输 */
+  compress?: boolean
+  /** 是否包含删除标记 */
+  include_deleted?: boolean
+}
+
+/**
+ * 全量同步响应
+ */
+export interface FullSyncResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 同步ID */
+  sync_id: string
+  /** 服务器时间 */
+  server_time: string
+  /** 是否有更多数据 */
+  has_more: boolean
+  /** 下一游标 */
+  next_cursor?: string
+  /** 数据 */
+  data: {
+    notes?: Array<{
+      id: number
+      user_id: number
+      title: string
+      content: string
+      folder_id: number | null
+      is_pinned: boolean
+      content_hash: string | null
+      created_at: string
+      updated_at: string
+      last_accessed_at: string
+      version?: number
+      is_incremental: boolean
+    }>
+    folders?: Array<{
+      id: number
+      user_id: number
+      name: string
+      created_at: string
+      updated_at: string
+      version?: number
+      is_incremental: boolean
+    }>
+    reviews?: Array<{
+      id: number
+      user_id: number
+      date: string
+      content: string
+      mood: number | null
+      achievements: any
+      improvements: any
+      plans: any
+      template_id: number | null
+      created_at: string
+      updated_at: string
+      version?: number
+      is_incremental: boolean
+    }>
+  }
+  /** 数据校验和 */
+  checksum?: {
+    notes?: string
+    folders?: string
+    reviews?: string
+  }
+  /** 统计信息 */
+  stats: {
+    notes_count: number
+    folders_count: number
+    reviews_count: number
+    total_bytes: number
+    incremental_notes: number
+    incremental_folders: number
+    incremental_reviews: number
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 同步状态请求
+ */
+export interface SyncStatusRequest {
+  /** 同步ID（可选） */
+  sync_id?: string
+}
+
+/**
+ * 同步历史记录
+ */
+export interface SyncHistoryItem {
+  /** 同步ID */
+  sync_id: string
+  /** 同步类型 */
+  sync_type: 'incremental_pull' | 'incremental_push' | 'full_sync'
+  /** 开始时间 */
+  start_time: string
+  /** 结束时间 */
+  end_time: string
+  /** 状态 */
+  status: 'success' | 'failed' | 'cancelled' | 'conflict'
+  /** 操作数 */
+  operations_count: number
+  /** 成功数 */
+  success_count: number
+  /** 失败数 */
+  failed_count: number
+  /** 冲突数 */
+  conflicts_count: number
+  /** 设备ID */
+  device_id: string
+  /** 耗时（毫秒） */
+  duration: number
+  /** 传输字节数 */
+  bytes_transferred: number
+  /** 错误信息（如果失败） */
+  error?: string
+}
+
+/**
+ * 同步统计信息
+ */
+export interface SyncStatistics {
+  /** 总同步次数 */
+  total_syncs: number
+  /** 成功次数 */
+  success_count: number
+  /** 失败次数 */
+  failed_count: number
+  /** 最后同步时间 */
+  last_sync_time: string
+  /** 平均同步耗时（毫秒） */
+  average_duration: number
+  /** 总传输字节数 */
+  total_bytes_transferred: number
+  /** 按类型统计 */
+  by_type: {
+    incremental_pull: number
+    incremental_push: number
+    full_sync: number
+  }
+  /** 最近N条历史 */
+  recent_history: SyncHistoryItem[]
+}
+
+/**
+ * 同步状态响应
+ */
+export interface SyncStatusResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 服务器时间 */
+  server_time: string
+  /** 同步状态数据 */
+  data?: {
+    /** 当前活跃同步 */
+    active_syncs: Array<{
+      sync_id: string
+      sync_type: string
+      status: string
+      progress: number
+      start_time: string
+      operations_count: number
+      completed_count: number
+    }>
+    /** 同步统计 */
+    statistics: SyncStatistics
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+// ============================================================================
+// 冲突API接口类型（T3-BE-03）
+// ============================================================================
+
+/**
+ * 获取冲突列表请求
+ */
+export interface GetConflictsRequest {
+  /** 冲突状态 */
+  status?: 'all' | 'unresolved' | 'resolved'
+  /** 实体类型过滤 */
+  entity_type?: string
+  /** 冲突类型过滤 */
+  conflict_type?: string
+  /** 分页参数 */
+  page?: number
+  limit?: number
+}
+
+/**
+ * 获取冲突列表响应
+ */
+export interface GetConflictsResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 冲突列表 */
+  data?: {
+    conflicts: Array<{
+      conflict_id: string
+      conflict_type: string
+      entity_type: string
+      entity_id: number
+      operation_id: string
+      server_data: {
+        version: number
+        data: Record<string, any>
+        modified_at: string
+        modified_by: number
+      }
+      client_data: {
+        version: number
+        data: Record<string, any>
+        modified_at: string
+        operation_type: string
+      }
+      conflict_fields: string[]
+      suggested_strategy: string
+      status: 'unresolved' | 'resolved' | 'ignored'
+      timestamp: string
+      resolved_at?: string
+    }>
+    total: number
+    pagination: {
+      page: number
+      limit: number
+      total_pages: number
+    }
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 获取冲突详情请求
+ */
+export interface GetConflictRequest {
+  /** 冲突ID */
+  conflict_id: string
+}
+
+/**
+ * 获取冲突详情响应
+ */
+export interface GetConflictResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 冲突详情 */
+  data?: {
+    conflict_id: string
+    conflict_type: string
+    entity_type: string
+    entity_id: number
+    operation_id: string
+    server_data: {
+      version: number
+      data: Record<string, any>
+      modified_at: string
+      modified_by: number
+    }
+    client_data: {
+      version: number
+      data: Record<string, any>
+      modified_at: string
+      operation_type: string
+    }
+    conflict_fields: string[]
+    suggested_strategy: string
+    status: 'unresolved' | 'resolved' | 'ignored'
+    timestamp: string
+    resolved_at?: string
+    resolution_strategy?: string
+    resolved_data?: Record<string, any>
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 解决冲突请求（API接口）
+ */
+export interface ResolveConflictApiRequest {
+  /** 冲突ID */
+  conflict_id: string
+  /** 解决方案 */
+  resolution: {
+    strategy: string
+    resolved_data?: Record<string, any>
+    auto_resolve: boolean
+  }
+}
+
+/**
+ * 解决冲突响应（API接口）
+ */
+export interface ResolveConflictApiResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 解决结果 */
+  data?: {
+    conflict_id: string
+    success: boolean
+    resolved_data?: Record<string, any>
+    new_version?: number
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 批量解决冲突请求（API接口）
+ */
+export interface BatchResolveConflictApiRequest {
+  /** 冲突解决列表 */
+  resolutions: Array<{
+    conflict_id: string
+    resolution: {
+      strategy: string
+      resolved_data?: Record<string, any>
+      auto_resolve: boolean
+    }
+  }>
+}
+
+/**
+ * 批量解决冲突响应（API接口）
+ */
+export interface BatchResolveConflictApiResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 解决结果列表 */
+  data?: Array<{
+    conflict_id: string
+    success: boolean
+    resolved_data?: Record<string, any>
+    new_version?: number
+  }>
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 忽略冲突请求
+ */
+export interface IgnoreConflictRequest {
+  /** 冲突ID */
+  conflict_id: string
+  /** 忽略原因 */
+  reason?: string
+}
+
+/**
+ * 忽略冲突响应
+ */
+export interface IgnoreConflictResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 冲突ID */
+  data?: {
+    conflict_id: string
+    status: 'ignored'
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 获取冲突统计请求
+ */
+export interface GetConflictStatsRequest {
+  /** 时间范围（天数） */
+  days?: number
+}
+
+/**
+ * 获取冲突统计响应
+ */
+export interface GetConflictStatsResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 统计数据 */
+  data?: {
+    total: number
+    unresolved: number
+    resolved: number
+    ignored: number
+    by_type: Record<string, number>
+    by_entity_type: Record<string, number>
+    average_resolution_time?: number
+    most_common_conflict_type?: string
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+/**
+ * 冲突解决策略配置请求
+ */
+export interface ConflictResolutionStrategyConfigRequest {
+  /** 并发更新冲突解决策略 */
+  concurrentUpdate?: 'timestamp' | 'manual' | 'merge'
+  /** 删除-更新冲突解决策略 */
+  deleteUpdate?: 'delete_wins' | 'update_wins' | 'manual'
+  /** 更新-删除冲突解决策略 */
+  updateDelete?: 'timestamp' | 'manual'
+  /** 重命名冲突解决策略 */
+  renameConflict?: 'append_suffix' | 'manual' | 'merge'
+  /** 文件夹移动冲突解决策略 */
+  folderMoveConflict?: 'timestamp' | 'manual'
+}
+
+/**
+ * 冲突解决策略配置响应
+ */
+export interface ConflictResolutionStrategyConfigResponse {
+  /** 是否成功 */
+  success: boolean
+  /** 配置数据 */
+  data?: {
+    concurrentUpdate: 'timestamp' | 'manual' | 'merge'
+    deleteUpdate: 'delete_wins' | 'update_wins' | 'manual'
+    updateDelete: 'timestamp' | 'manual'
+    renameConflict: 'append_suffix' | 'manual' | 'merge'
+    folderMoveConflict: 'timestamp' | 'manual'
+  }
+  /** 错误信息 */
+  error?: string
+}
+
+// ============================================================================
+// 同步队列管理接口类型（T3-BE-05）
+// ============================================================================
+
+/**
+ * 队列优先级
+ */
+export type QueuePriority = 'high' | 'medium' | 'low'
+
+/**
+ * 队列操作状态
+ */
+export type QueueOperationStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+/**
+ * 队列中的同步操作
+ */
+export interface QueuedSyncOperation {
+  /** 操作ID */
+  id: string
+  /** 用户ID */
+  user_id: number
+  /** 设备ID */
+  device_id: string
+  /** 客户端ID */
+  client_id: string
+  /** 操作类型 */
+  operation_type: 'create' | 'update' | 'delete'
+  /** 实体类型 */
+  entity_type: 'note' | 'folder' | 'review'
+  /** 实体数据 */
+  entity_data: Record<string, any>
+  /** 实体ID */
+  entity_id?: number
+  /** 优先级 */
+  priority: QueuePriority
+  /** 重试次数 */
+  retry_count: number
+  /** 最大重试次数 */
+  max_retries: number
+  /** 状态 */
+  status: QueueOperationStatus
+  /** 错误信息 */
+  error?: string
+  /** 创建时间 */
+  created_at: string
+  /** 更新时间 */
+  updated_at: string
+  /** 预定执行时间 */
+  scheduled_at?: string
+  /** 完成时间 */
+  completed_at?: string
+  /** 开始处理时间 */
+  started_at?: string
+}
+
+/**
+ * 队列状态统计
+ */
+export interface SyncQueueStatus {
+  /** 用户ID */
+  user_id: number
+  /** 总操作数 */
+  total_operations: number
+  /** 待处理操作数 */
+  pending_operations: number
+  /** 处理中操作数 */
+  processing_operations: number
+  /** 已完成操作数 */
+  completed_operations: number
+  /** 失败操作数 */
+  failed_operations: number
+  /** 高优先级操作数 */
+  high_priority_count: number
+  /** 中优先级操作数 */
+  medium_priority_count: number
+  /** 低优先级操作数 */
+  low_priority_count: number
+  /** 最老的待处理操作时间 */
+  oldest_pending_operation?: string
+  /** 最新的待处理操作时间 */
+  newest_pending_operation?: string
+}
+
+/**
+ * 队列性能统计
+ */
+export interface QueuePerformanceStats {
+  /** 平均处理时间（毫秒） */
+  avg_processing_time: number
+  /** 成功率 */
+  success_rate: number
+  /** 平均重试次数 */
+  avg_retry_count: number
+  /** 总处理操作数 */
+  total_processed: number
+  /** 总成功操作数 */
+  total_success: number
+  /** 总失败操作数 */
+  total_failed: number
+  /** 处理中的操作数 */
+  processing_count: number
+}
+
+/**
+ * 添加到队列请求
+ */
+export interface EnqueueRequest {
+  /** 操作列表 */
+  operations: Array<{
+    /** 操作类型 */
+    type: 'create' | 'update' | 'delete'
+    /** 实体类型 */
+    entity_type: 'note' | 'folder' | 'review'
+    /** 实体数据 */
+    data: Record<string, any>
+    /** 实体ID */
+    entity_id?: number
+  }>
+  /** 优先级 */
+  priority: QueuePriority
+  /** 预定执行时间 */
+  scheduled_at?: Date
+}
+
+/**
+ * 处理队列响应
+ */
+export interface ProcessQueueResponse {
+  /** 处理的操作数量 */
+  processed_count: number
+  /** 处理结果 */
+  results: Array<{
+    /** 操作ID */
+    operation_id: string
+    /** 状态 */
+    status: 'completed' | 'failed'
+    /** 错误信息 */
+    error?: string
+  }>
+}
+
+/**
+ * 队列告警
+ */
+export interface QueueAlert {
+  /** 告警ID */
+  alert_id: string
+  /** 告警类型 */
+  alert_type: 'queue_full' | 'high_pending_count' | 'high_failure_rate' | 'processing_timeout'
+  /** 告警消息 */
+  message: string
+  /** 严重程度 */
+  severity: 'info' | 'warning' | 'error' | 'critical'
+  /** 时间戳 */
+  timestamp: Date
+  /** 用户ID */
+  user_id?: number
+  /** 相关数据 */
+  data: Record<string, any>
 }

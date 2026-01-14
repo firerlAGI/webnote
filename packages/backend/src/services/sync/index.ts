@@ -3,7 +3,7 @@
  * 导出所有同步相关的模块和类型
  */
 
-export { SyncService } from './SyncService'
+export { SyncService, type SyncServiceConfig, type WebSocketConnection } from './SyncService'
 export {
   registerSyncRoutes,
   handleWebSocketConnection,

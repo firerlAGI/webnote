@@ -14,7 +14,15 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@webnote/shared": ["../shared/src"],
+      "@webnote/shared/types": ["../shared/src/types"],
+      "@webnote/shared/utils": ["../shared/src/utils"],
+      "@webnote/shared/api": ["../shared/src/api"],
+      "@webnote/shared/schemas": ["../shared/src/schemas"],
+      "@webnote/shared/constants": ["../shared/src/constants"]
+    }
   },
   "include": ["src"]
 }

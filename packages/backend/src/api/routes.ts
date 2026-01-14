@@ -88,7 +88,7 @@ const ensureUploadsDirectory = (): void => {
   }
 }
 
-export function routes(app: FastifyInstance) {
+export async function routes(app: FastifyInstance) {
   // Public routes
   app.get('/', async () => {
     return { hello: 'world' }
@@ -1264,6 +1264,130 @@ export function routes(app: FastifyInstance) {
     } catch (error) {
       app.log.error(error)
       return reply.status(500).send({ success: false, error: 'Failed to download backup' })
+    }
+  })
+
+  // Backup scheduler routes (admin only)
+  app.get('/backups/scheduler/status', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      // Check if user is admin
+      const user = await prisma.user.findUnique({
+        where: { id: (request.user as UserPayload).id },
+        select: { role: true }
+      })
+
+      if (!user || user.role !== 'admin') {
+        return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
+      }
+
+      // Get scheduler from server instance
+      const { scheduler } = (app as any)
+
+      if (!scheduler) {
+        return reply.status(404).send({ success: false, error: 'Scheduler not initialized' })
+      }
+
+      const status = scheduler.getStatus()
+      const taskStatus = scheduler.getTaskStatus()
+      const history = scheduler.getTaskHistory(10)
+
+      return reply.status(200).send({
+        success: true,
+        data: {
+          scheduler: status,
+          tasks: taskStatus,
+          history
+        },
+        message: 'Scheduler status retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Failed to retrieve scheduler status' })
+    }
+  })
+
+  app.post('/backups/scheduler/trigger', { preHandler: authenticate }, async (request, reply) => {
+    const { taskId } = request.body as { taskId: string }
+
+    if (!taskId) {
+      return reply.status(400).send({ success: false, error: 'Missing required field: taskId' })
+    }
+
+    try {
+      // Check if user is admin
+      const user = await prisma.user.findUnique({
+        where: { id: (request.user as UserPayload).id },
+        select: { role: true }
+      })
+
+      if (!user || user.role !== 'admin') {
+        return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
+      }
+
+      // Get scheduler from server instance
+      const { scheduler } = (app as any)
+
+      if (!scheduler) {
+        return reply.status(404).send({ success: false, error: 'Scheduler not initialized' })
+      }
+
+      await scheduler.triggerTask(taskId)
+
+      return reply.status(200).send({
+        success: true,
+        message: 'Task triggered successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to trigger task'
+      })
+    }
+  })
+
+  app.patch('/backups/scheduler/task/:taskId', { preHandler: authenticate }, async (request, reply) => {
+    const { taskId } = request.params as { taskId: string }
+    const { enabled } = request.body as { enabled: boolean }
+
+    if (enabled === undefined) {
+      return reply.status(400).send({ success: false, error: 'Missing required field: enabled' })
+    }
+
+    try {
+      // Check if user is admin
+      const user = await prisma.user.findUnique({
+        where: { id: (request.user as UserPayload).id },
+        select: { role: true }
+      })
+
+      if (!user || user.role !== 'admin') {
+        return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
+      }
+
+      // Get scheduler from server instance
+      const { scheduler } = (app as any)
+
+      if (!scheduler) {
+        return reply.status(404).send({ success: false, error: 'Scheduler not initialized' })
+      }
+
+      const success = scheduler.setTaskEnabled(taskId, enabled)
+
+      if (!success) {
+        return reply.status(404).send({ success: false, error: 'Task not found' })
+      }
+
+      return reply.status(200).send({
+        success: true,
+        message: `Task ${enabled ? 'enabled' : 'disabled'} successfully`
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update task status'
+      })
     }
   })
 }

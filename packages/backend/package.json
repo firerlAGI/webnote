@@ -9,25 +9,32 @@
     "start": "node dist/server.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
-    "test": "vitest"
+    "test": "vitest",
+    "test:db-performance": "tsx scripts/index-performance-test.ts",
+    "test:db-baseline": "tsx scripts/index-performance-test.ts",
+    "monitor:index": "tsx scripts/index-monitor.ts"
   },
   "dependencies": {
     "fastify": "^4.24.0",
-    "@fastify/jwt": "^5.0.0",
-    "@fastify/cors": "^7.0.0",
-    "@fastify/rate-limit": "^6.0.0",
-    "@fastify/static": "^5.0.0",
-    "@fastify/websocket": "^5.0.0",
-    "@fastify/multipart": "^7.0.0",
+    "@fastify/jwt": "^8.0.0",
+    "@fastify/cors": "^9.0.0",
+    "@fastify/rate-limit": "^9.0.0",
+    "@fastify/static": "^6.12.0",
+    "@fastify/websocket": "^10.0.0",
+    "@fastify/multipart": "^8.0.0",
     "prisma": "^5.4.0",
     "@prisma/client": "^5.4.0",
     "bcrypt": "^5.1.0",
     "zod": "^3.20.0",
-    "ali-oss": "^6.18.0"
+    "ali-oss": "^6.18.0",
+    "pino": "^8.16.0",
+    "uuid": "^9.0.0",
+    "@webnote/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.0",
     "@types/node": "^20.0.0",
+    "@types/uuid": "^9.0.0",
     "tsx": "^4.1.0",
     "typescript": "^5.0.0",
     "vitest": "^0.34.0"

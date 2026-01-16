@@ -436,11 +436,11 @@ class BackupService {
           retention_type: retentionType,
           retention_until: retentionUntil,
           item_count: totalItems,
-          metadata: {
+          metadata: JSON.stringify({
             noteCount: notes.length,
             folderCount: folders.length,
-            reviewCount: reviews.length,
-          },
+            reviewCount: reviews.length
+          }),
         },
       });
 

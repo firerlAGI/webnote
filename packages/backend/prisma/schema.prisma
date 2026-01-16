@@ -16,9 +16,10 @@ model User {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   
-  notes     Note[]
-  folders   Folder[]
-  reviews   Review[]
+  notes       Note[]
+  folders     Folder[]
+  reviews     Review[]
+  settings    UserSettings?
 }
 
 model Note {
@@ -68,6 +69,22 @@ model Review {
   improvements String?
   plans        String?
   template_id  Int?
+  // 生物指标（雷达图）
+  spirit       Int?      // 精神 (1-10)
+  energy       Int?      // 体力 (1-10)
+  focus        Int?      // 专注 (1-10)
+  creativity   Int?      // 创造 (1-10)
+  emotion      Int?      // 情绪 (1-10)
+  social       Int?      // 社交 (1-10)
+  // 统计数据
+  focus_score  Int?      // 专注度百分比 (0-100)
+  energy_score Int?      // 体力百分比 (0-100)
+  mood_score   Float?    // 情绪评分 (1-10)
+  // 核心任务和阻碍
+  prime_directive String?  // 核心任务
+  system_interrupts String? // 阻碍因素
+  // 附件
+  attachments String?      // JSON数组，存储附件URL列表
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
@@ -164,6 +181,29 @@ model SyncStatistics {
   total_bytes_transferred BigInt @default(0)
   average_sync_duration Float   @default(0)
   updated_at          DateTime @updatedAt
+
+  @@index([user_id])
+}
+
+model UserSettings {
+  id           Int      @id @default(autoincrement())
+  user_id      Int      @unique
+  // 界面设置
+  theme        String   @default("cyan") // cyan, pink, yellow
+  language     String   @default("zh-CN") // zh-CN, en-US, ja-JP
+  density      String   @default("standard") // standard, compact
+  // 同步设置
+  sync_enabled Boolean  @default(true)
+  offline_retention_days Int @default(7)
+  // 通知设置
+  notifications String  @default("{}") // JSON对象
+  // 安全设置
+  two_factor_enabled Boolean @default(false)
+  encryption_enabled Boolean @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user         User     @relation(fields: [user_id], references: [id])
 
   @@index([user_id])
 }

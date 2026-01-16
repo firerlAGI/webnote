@@ -42,10 +42,10 @@ const ReviewPage: React.FC = () => {
         {/* Left: Visualization */}
         <div className="lg:col-span-5 flex flex-col gap-6">
            {/* Radar Chart Card */}
-           <CyberCard title="BIO_METRICS" className="flex-1 min-h-[300px] flex flex-col items-center justify-center bg-black/40">
-              <div className="w-full h-full -ml-4">
-                 <StatRadar data={statsData} />
-              </div>
+          <CyberCard title="BIO_METRICS" className="flex-1 min-h-[380px] bg-black/40">
+             <div className="w-full">
+                <StatRadar data={statsData} />
+             </div>
               <div className="flex gap-4 text-[10px] font-mono text-gray-500 mt-2">
                  <div className="flex items-center gap-1"><div className="w-2 h-2 bg-cyber-cyan"></div> CURRENT</div>
                  <div className="flex items-center gap-1"><div className="w-2 h-2 bg-gray-700"></div> TARGET</div>

@@ -645,7 +645,9 @@ export class SyncStateManager extends EventEmitter {
       updated_at: session.updated_at,
       completed_at: session.completed_at || undefined,
       operations: operationRecords,
-      conflicts: (session.conflicts as any[]) || [],
+      conflicts: Array.isArray(session.conflicts)
+        ? (session.conflicts as unknown as any[])
+        : [],
       statistics: {
         notes_created: session.notes_created,
         notes_updated: session.notes_updated,

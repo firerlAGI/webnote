@@ -890,6 +890,178 @@ export async function routes(app: FastifyInstance) {
     }
   })
 
+  // User Settings routes
+  app.get('/user/settings', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const userId = (request.user as UserPayload).id
+      
+      // Get or create user settings
+      let settings = await prisma.userSettings.findUnique({
+        where: { user_id: userId }
+      })
+      
+      if (!settings) {
+        // Create default settings
+        settings = await prisma.userSettings.create({
+          data: {
+            user_id: userId,
+            theme: 'cyan',
+            language: 'zh-CN',
+            density: 'standard',
+            sync_enabled: true,
+            offline_retention_days: 7,
+            notifications: JSON.stringify({
+              system_updates: true,
+              daily_reminder: true,
+              intrusion_detection: true,
+              community_updates: false
+            }),
+            two_factor_enabled: false,
+            encryption_enabled: true
+          }
+        })
+      }
+      
+      // Parse notifications JSON
+      const responseData = {
+        ...settings,
+        notifications: JSON.parse(settings.notifications)
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: responseData,
+        message: 'User settings retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.put('/user/settings', { preHandler: authenticate }, async (request, reply) => {
+    const userId = (request.user as UserPayload).id
+    const {
+      theme,
+      language,
+      density,
+      sync_enabled,
+      offline_retention_days,
+      notifications,
+      two_factor_enabled,
+      encryption_enabled
+    } = request.body as {
+      theme?: 'cyan' | 'pink' | 'yellow'
+      language?: 'zh-CN' | 'en-US' | 'ja-JP'
+      density?: 'standard' | 'compact'
+      sync_enabled?: boolean
+      offline_retention_days?: number
+      notifications?: {
+        system_updates: boolean
+        daily_reminder: boolean
+        intrusion_detection: boolean
+        community_updates: boolean
+      }
+      two_factor_enabled?: boolean
+      encryption_enabled?: boolean
+    }
+    
+    try {
+      // Check if settings exist, create if not
+      const existingSettings = await prisma.userSettings.findUnique({
+        where: { user_id: userId }
+      })
+      
+      let settings
+      if (existingSettings) {
+        // Update settings
+        settings = await prisma.userSettings.update({
+          where: { user_id: userId },
+          data: {
+            ...(theme && { theme }),
+            ...(language && { language }),
+            ...(density && { density }),
+            ...(sync_enabled !== undefined && { sync_enabled }),
+            ...(offline_retention_days !== undefined && { offline_retention_days }),
+            ...(notifications && { notifications: JSON.stringify(notifications) }),
+            ...(two_factor_enabled !== undefined && { two_factor_enabled }),
+            ...(encryption_enabled !== undefined && { encryption_enabled })
+          }
+        })
+      } else {
+        // Create settings
+        settings = await prisma.userSettings.create({
+          data: {
+            user_id: userId,
+            theme: theme || 'cyan',
+            language: language || 'zh-CN',
+            density: density || 'standard',
+            sync_enabled: sync_enabled !== undefined ? sync_enabled : true,
+            offline_retention_days: offline_retention_days || 7,
+            notifications: notifications ? JSON.stringify(notifications) : JSON.stringify({
+              system_updates: true,
+              daily_reminder: true,
+              intrusion_detection: true,
+              community_updates: false
+            }),
+            two_factor_enabled: two_factor_enabled || false,
+            encryption_enabled: encryption_enabled !== undefined ? encryption_enabled : true
+          }
+        })
+      }
+      
+      // Parse notifications JSON
+      const responseData = {
+        ...settings,
+        notifications: JSON.parse(settings.notifications)
+      }
+      
+      return reply.status(200).send({
+        success: true,
+        data: responseData,
+        message: 'User settings updated successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.delete('/user/settings', { preHandler: authenticate }, async (request, reply) => {
+    const userId = (request.user as UserPayload).id
+    
+    try {
+      // Delete user settings
+      await prisma.userSettings.delete({
+        where: { user_id: userId }
+      })
+      
+      return reply.status(200).send({
+        success: true,
+        message: 'User settings reset to defaults successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Clear local cache route (simulated)
+  app.post('/user/clear-cache', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      // This is a simulated endpoint
+      // In a real application, this would clear client-side cache
+      // For now, we just return success
+      return reply.status(200).send({
+        success: true,
+        message: 'Local cache cleared successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
   // Review routes
   app.post('/reviews', { preHandler: authenticate }, async (request, reply) => {
     const { date, content, mood, achievements, improvements, plans, template_id } = request.body as { 
@@ -914,9 +1086,9 @@ export async function routes(app: FastifyInstance) {
           date: new Date(date),
           content,
           mood,
-          achievements: achievements ? { type: 'json', value: JSON.stringify(achievements) } : null,
-          improvements: improvements ? { type: 'json', value: JSON.stringify(improvements) } : null,
-          plans: plans ? { type: 'json', value: JSON.stringify(plans) } : null,
+          achievements: achievements ? JSON.stringify(achievements) : null,
+          improvements: improvements ? JSON.stringify(improvements) : null,
+          plans: plans ? JSON.stringify(plans) : null,
           template_id
         }
       })
@@ -1044,9 +1216,9 @@ export async function routes(app: FastifyInstance) {
           ...(date && { date: new Date(date) }),
           ...(content !== undefined && { content }),
           ...(mood !== undefined && { mood }),
-          ...(achievements !== undefined && { achievements: { type: 'json', value: JSON.stringify(achievements) } }),
-          ...(improvements !== undefined && { improvements: { type: 'json', value: JSON.stringify(improvements) } }),
-          ...(plans !== undefined && { plans: { type: 'json', value: JSON.stringify(plans) } }),
+          ...(achievements !== undefined && { achievements: JSON.stringify(achievements) }),
+          ...(improvements !== undefined && { improvements: JSON.stringify(improvements) }),
+          ...(plans !== undefined && { plans: JSON.stringify(plans) }),
           ...(template_id !== undefined && { template_id })
         }
       })
@@ -1140,6 +1312,285 @@ export async function routes(app: FastifyInstance) {
           periodStats
         },
         message: 'Review stats retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Get review dashboard data
+  app.get('/reviews/dashboard', { preHandler: authenticate }, async (request, reply) => {
+    const { date } = request.query as { date?: string }
+    
+    try {
+      const userId = (request.user as UserPayload).id
+      const targetDate = date ? new Date(date) : new Date()
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      targetDate.setHours(0, 0, 0, 0)
+      
+      // Get review for the target date
+      const currentReview = await prisma.review.findFirst({
+        where: {
+          user_id: userId,
+          date: {
+            gte: targetDate,
+            lt: new Date(targetDate.getTime() + 24 * 60 * 60 * 1000)
+          }
+        }
+      })
+      
+      // Calculate streak
+      const allReviews = await prisma.review.findMany({
+        where: {
+          user_id: userId
+        },
+        orderBy: {
+          date: 'desc'
+        },
+        select: {
+          date: true
+        }
+      })
+      
+      let streak = 0
+      const oneDay = 24 * 60 * 60 * 1000
+      let checkDate = new Date(today)
+      
+      // Check if there's a review for today
+      const todayReview = allReviews.find(r => {
+        const rDate = new Date(r.date)
+        rDate.setHours(0, 0, 0, 0)
+        return rDate.getTime() === today.getTime()
+      })
+      
+      if (todayReview) {
+        streak = 1
+        checkDate.setDate(checkDate.getDate() - 1)
+      } else {
+        checkDate.setDate(checkDate.getDate() - 1)
+      }
+      
+      // Count consecutive days
+      for (let i = 0; i < allReviews.length; i++) {
+        const reviewForDay = allReviews.find(r => {
+          const rDate = new Date(r.date)
+          rDate.setHours(0, 0, 0, 0)
+          return rDate.getTime() === checkDate.getTime()
+        })
+        
+        if (reviewForDay) {
+          streak++
+          checkDate.setDate(checkDate.getDate() - 1)
+        } else {
+          break
+        }
+      }
+      
+      // Calculate bio metrics averages from recent reviews (last 7 days)
+      const sevenDaysAgo = new Date(today)
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      
+      const recentReviews = await prisma.review.findMany({
+        where: {
+          user_id: userId,
+          date: {
+            gte: sevenDaysAgo
+          }
+        },
+        select: {
+          spirit: true,
+          energy: true,
+          focus: true,
+          creativity: true,
+          emotion: true,
+          social: true,
+          focus_score: true,
+          energy_score: true,
+          mood_score: true
+        }
+      })
+      
+      const count = recentReviews.length
+      const avgSpirit = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.spirit || 0), 0) / count : 0
+      const avgEnergy = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.energy || 0), 0) / count : 0
+      const avgFocus = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.focus || 0), 0) / count : 0
+      const avgCreativity = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.creativity || 0), 0) / count : 0
+      const avgEmotion = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.emotion || 0), 0) / count : 0
+      const avgSocial = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.social || 0), 0) / count : 0
+      const avgFocusScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.focus_score || 0), 0) / count : 0
+      const avgEnergyScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.energy_score || 0), 0) / count : 0
+      const avgMoodScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.mood_score || 0), 0) / count : 0
+      
+      // Get recent reviews (last 5)
+      const recentReviewsList = await prisma.review.findMany({
+        where: {
+          user_id: userId
+        },
+        orderBy: {
+          date: 'desc'
+        },
+        take: 5
+      })
+      
+      // Parse JSON fields for response
+      const parsedCurrentReview = currentReview ? {
+        ...currentReview,
+        achievements: currentReview.achievements ? JSON.parse(currentReview.achievements) : [],
+        improvements: currentReview.improvements ? JSON.parse(currentReview.improvements) : [],
+        plans: currentReview.plans ? JSON.parse(currentReview.plans) : [],
+        attachments: currentReview.attachments ? JSON.parse(currentReview.attachments) : []
+      } : null
+      
+      const parsedRecentReviews = recentReviewsList.map(r => ({
+        ...r,
+        achievements: r.achievements ? JSON.parse(r.achievements) : [],
+        improvements: r.improvements ? JSON.parse(r.improvements) : [],
+        plans: r.plans ? JSON.parse(r.plans) : [],
+        attachments: r.attachments ? JSON.parse(r.attachments) : []
+      }))
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          currentReview: parsedCurrentReview,
+          streak,
+          stats: {
+            focus: Math.round(avgFocusScore),
+            energy: Math.round(avgEnergyScore),
+            mood: Math.round(avgMoodScore * 10) / 10
+          },
+          bioMetrics: {
+            spirit: Math.round(avgSpirit * 10) / 10,
+            energy: Math.round(avgEnergy * 10) / 10,
+            focus: Math.round(avgFocus * 10) / 10,
+            creativity: Math.round(avgCreativity * 10) / 10,
+            emotion: Math.round(avgEmotion * 10) / 10,
+            social: Math.round(avgSocial * 10) / 10
+          },
+          recentReviews: parsedRecentReviews
+        },
+        message: 'Review dashboard data retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  // Enhanced review creation with bio metrics
+  app.post('/reviews/detailed', { preHandler: authenticate }, async (request, reply) => {
+    const {
+      date,
+      content,
+      mood,
+      achievements,
+      improvements,
+      plans,
+      template_id,
+      // 生物指标（雷达图）
+      spirit,
+      energy,
+      focus,
+      creativity,
+      emotion,
+      social,
+      // 统计数据
+      focus_score,
+      energy_score,
+      mood_score,
+      // 核心任务和阻碍
+      prime_directive,
+      system_interrupts,
+      // 附件
+      attachments
+    } = request.body as {
+      date: string
+      content: string
+      mood?: number
+      achievements?: string[]
+      improvements?: string[]
+      plans?: string[]
+      template_id?: number
+      // 生物指标（雷达图）
+      spirit?: number
+      energy?: number
+      focus?: number
+      creativity?: number
+      emotion?: number
+      social?: number
+      // 统计数据
+      focus_score?: number
+      energy_score?: number
+      mood_score?: number
+      // 核心任务和阻碍
+      prime_directive?: string
+      system_interrupts?: string
+      // 附件
+      attachments?: string[]
+    }
+    
+    if (!date || !content) {
+      return reply.status(400).send({ success: false, error: 'Missing required fields' })
+    }
+    
+    try {
+      // Check if review already exists for this date
+      const existingReview = await prisma.review.findFirst({
+        where: {
+          user_id: (request.user as UserPayload).id,
+          date: new Date(date)
+        }
+      })
+      
+      if (existingReview) {
+        return reply.status(400).send({ success: false, error: 'Review already exists for this date' })
+      }
+      
+      // Create review
+      const review = await prisma.review.create({
+        data: {
+          user_id: (request.user as UserPayload).id,
+          date: new Date(date),
+          content,
+          mood,
+          achievements: achievements ? JSON.stringify(achievements) : null,
+          improvements: improvements ? JSON.stringify(improvements) : null,
+          plans: plans ? JSON.stringify(plans) : null,
+          template_id,
+          // 生物指标
+          spirit,
+          energy,
+          focus,
+          creativity,
+          emotion,
+          social,
+          // 统计数据
+          focus_score,
+          energy_score,
+          mood_score,
+          // 核心任务和阻碍
+          prime_directive,
+          system_interrupts,
+          // 附件
+          attachments: attachments && attachments.length > 0 ? JSON.stringify(attachments) : null
+        }
+      })
+      
+      // Parse for response
+      const parsedReview = {
+        ...review,
+        achievements: review.achievements ? JSON.parse(review.achievements) : [],
+        improvements: review.improvements ? JSON.parse(review.improvements) : [],
+        plans: review.plans ? JSON.parse(review.plans) : [],
+        attachments: review.attachments ? JSON.parse(review.attachments) : []
+      }
+      
+      return reply.status(201).send({
+        success: true,
+        data: parsedReview,
+        message: 'Review created successfully'
       })
     } catch (error) {
       app.log.error(error)

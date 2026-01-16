@@ -1108,9 +1108,9 @@ private startHeartbeatCheck(): void {
               date: new Date(operation.data.date),
               content: operation.data.content,
               mood: operation.data.mood,
-              achievements: operation.data.achievements ? { type: 'json', value: JSON.stringify(operation.data.achievements) } : null,
-              improvements: operation.data.improvements ? { type: 'json', value: JSON.stringify(operation.data.improvements) } : null,
-              plans: operation.data.plans ? { type: 'json', value: JSON.stringify(operation.data.plans) } : null
+              achievements: operation.data.achievements ? JSON.stringify(operation.data.achievements) : null,
+              improvements: operation.data.improvements ? JSON.stringify(operation.data.improvements) : null,
+              plans: operation.data.plans ? JSON.stringify(operation.data.plans) : null
             }
           })
           break

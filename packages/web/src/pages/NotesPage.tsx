@@ -6,6 +6,7 @@ import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Sa
 const NotesPage: React.FC = () => {
   const { notes, folders, addNote, updateNote, deleteNote } = useData();
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   // View States
@@ -47,7 +48,7 @@ const NotesPage: React.FC = () => {
     addNote({
       title: 'UNTITLED_PROTOCOL',
       content: '',
-      folder_id: 1,
+      folder_id: selectedFolderId || 1,
       isPinned: false,
       tags: ['DRAFT'],
       user_id: 1
@@ -147,8 +148,9 @@ const NotesPage: React.FC = () => {
   };
 
   const filteredNotes = notes.filter(n => 
-    n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    n.content.toLowerCase().includes(searchTerm.toLowerCase())
+    (n.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    n.content.toLowerCase().includes(searchTerm.toLowerCase())) &&
+    (selectedFolderId === null || n.folderId === selectedFolderId)
   );
 
   const wordCount = selectedNote?.content.trim().split(/\s+/).filter(w => w.length > 0).length || 0;
@@ -181,9 +183,28 @@ const NotesPage: React.FC = () => {
 
         {/* Folder Chips */}
         <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0">
+          <button
+            onClick={() => setSelectedFolderId(null)}
+            className={`flex items-center gap-2 px-3 py-1.5 border rounded-sm text-[10px] font-mono transition-all whitespace-nowrap group ${
+              selectedFolderId === null
+                ? 'border-cyber-cyan bg-cyber-cyan/10 text-white'
+                : 'border-gray-800 bg-black/40 text-gray-400 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 hover:text-white'
+            }`}
+          >
+            <Folder size={10} className={`${selectedFolderId === null ? 'text-cyber-cyan' : 'text-gray-600 group-hover:text-cyber-yellow'} transition-colors`} />
+            ALL_SECTORS
+          </button>
           {folders.map(f => (
-            <button key={f.id} className="flex items-center gap-2 px-3 py-1.5 border border-gray-800 bg-black/40 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 rounded-sm text-[10px] font-mono text-gray-400 hover:text-white transition-all whitespace-nowrap group">
-              <Folder size={10} className="text-gray-600 group-hover:text-cyber-yellow transition-colors" />
+            <button
+              key={f.id}
+              onClick={() => setSelectedFolderId(prev => prev === f.id ? null : f.id)}
+              className={`flex items-center gap-2 px-3 py-1.5 border rounded-sm text-[10px] font-mono transition-all whitespace-nowrap group ${
+                selectedFolderId === f.id
+                  ? 'border-cyber-cyan bg-cyber-cyan/10 text-white'
+                  : 'border-gray-800 bg-black/40 text-gray-400 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 hover:text-white'
+              }`}
+            >
+              <Folder size={10} className={`${selectedFolderId === f.id ? 'text-cyber-cyan' : 'text-gray-600 group-hover:text-cyber-yellow'} transition-colors`} />
               {f.name}
             </button>
           ))}
@@ -191,6 +212,16 @@ const NotesPage: React.FC = () => {
 
         {/* The List */}
         <CyberCard className="flex-1 overflow-hidden flex flex-col" noPadding variant="flat">
+          <div className="flex flex-col h-full">
+          <div className="p-2 border-b border-gray-800 bg-black/20">
+             <button 
+               onClick={handleCreateNew}
+               className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-700 hover:border-cyber-cyan text-gray-500 hover:text-cyber-cyan transition-all text-xs font-mono group"
+             >
+               <Plus size={14} className="group-hover:rotate-90 transition-transform" />
+               INITIATE_NEW_ENTRY
+             </button>
+          </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {filteredNotes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 opacity-50">
@@ -231,14 +262,6 @@ const NotesPage: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="p-2 border-t border-gray-800 bg-black/20">
-             <button 
-               onClick={handleCreateNew}
-               className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-700 hover:border-cyber-cyan text-gray-500 hover:text-cyber-cyan transition-all text-xs font-mono group"
-             >
-               <Plus size={14} className="group-hover:rotate-90 transition-transform" />
-               INITIATE_NEW_ENTRY
-             </button>
           </div>
         </CyberCard>
       </div>
@@ -248,7 +271,7 @@ const NotesPage: React.FC = () => {
         
         {selectedNote ? (
           <CyberCard className="h-full flex flex-col overflow-hidden shadow-2xl" noPadding variant="default">
-            
+            <div className="flex flex-col h-full">
             {/* 1. Tactical Toolbar */}
             <div className="shrink-0 h-14 bg-black/40 border-b border-gray-800 flex items-center justify-between px-4 select-none">
               
@@ -374,7 +397,7 @@ const NotesPage: React.FC = () => {
                   <span>MARKDOWN_SUPPORT: ACTIVE</span>
                </div>
             </div>
-
+            </div>
           </CyberCard>
         ) : (
           /* Empty State */

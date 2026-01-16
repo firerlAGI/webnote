@@ -468,14 +468,14 @@ export async function routes(app: FastifyInstance) {
     }
     
     try {
-      const where = {
+      const where: any = {
         user_id: (request.user as UserPayload).id,
         ...(folder_id && { folder_id: parseInt(folder_id) }),
         ...(is_pinned !== undefined && { is_pinned: is_pinned === 'true' }),
         ...(search && {
           OR: [
-            { title: { contains: search, mode: 'insensitive' } },
-            { content: { contains: search, mode: 'insensitive' } }
+            { title: { contains: search, mode: 'insensitive' as const } },
+            { content: { contains: search, mode: 'insensitive' as const } }
           ]
         })
       }
@@ -1273,10 +1273,10 @@ export async function routes(app: FastifyInstance) {
       // Check if user is admin
       const user = await prisma.user.findUnique({
         where: { id: (request.user as UserPayload).id },
-        select: { role: true }
+        select: { role: true } as any
       })
 
-      if (!user || user.role !== 'admin') {
+      if (!user || (user as any).role !== 'admin') {
         return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
       }
 
@@ -1317,10 +1317,10 @@ export async function routes(app: FastifyInstance) {
       // Check if user is admin
       const user = await prisma.user.findUnique({
         where: { id: (request.user as UserPayload).id },
-        select: { role: true }
+        select: { role: true } as any
       })
 
-      if (!user || user.role !== 'admin') {
+      if (!user || (user as any).role !== 'admin') {
         return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
       }
 
@@ -1358,10 +1358,10 @@ export async function routes(app: FastifyInstance) {
       // Check if user is admin
       const user = await prisma.user.findUnique({
         where: { id: (request.user as UserPayload).id },
-        select: { role: true }
+        select: { role: true } as any
       })
 
-      if (!user || user.role !== 'admin') {
+      if (!user || (user as any).role !== 'admin') {
         return reply.status(403).send({ success: false, error: 'Forbidden: Admin access required' })
       }
 

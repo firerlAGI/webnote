@@ -28,6 +28,7 @@ import { SyncStatusDetail,
   PollingResponse,
   PollingPriority
 } from './types'
+import { SyncStateManager } from './SyncStateManager'
 import { WebSocket } from '@fastify/websocket'
 import { ConflictService } from './ConflictService'
 import { QueueService } from './QueueService'
@@ -38,6 +39,44 @@ import {
   ConnectionHealthConfig,
   HTTPPollingConfig
 } from './fallback'
+
+// ============================================================================
+// 补充类型定义
+// ============================================================================
+
+interface GetSyncStatusResponse {
+  success: boolean
+  data: {
+    active_syncs: SyncStatusDetail[]
+    sync_history: any[]
+  }
+}
+
+interface GetSyncQueueResponse {
+  success: boolean
+  data: {
+    operations: QueuedSyncOperation[]
+    total: number
+    pagination: {
+      page: number
+      limit: number
+      total_pages: number
+    }
+    stats: {
+      pending: number
+      processing: number
+      completed: number
+      failed: number
+    }
+  }
+}
+
+interface FieldDiff {
+  field_name: string
+  client_value: any
+  server_value: any
+  diff_type: 'added' | 'removed' | 'modified'
+}
 
 // ============================================================================
 // 同步服务配置
@@ -891,22 +930,22 @@ private startHeartbeatCheck(): void {
             const result = await this.executeOperation(user_id, operation)
             operationResults.push(result)
 
-            // 更新统计信息
-            if (this.stateManager) {
-              await this.stateManager.updateSyncSession(syncId, {
-                statistics: {
-                  notes_created: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
-                  notes_updated: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
-                  notes_deleted: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0,
-                  folders_created: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
-                  folders_updated: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
-                  folders_deleted: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0,
-                  reviews_created: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
-                  reviews_updated: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
-                  reviews_deleted: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0
-                }
-              })
-            }
+          // 更新统计信息
+          if (this.stateManager) {
+            await this.stateManager.updateSyncSession(syncId, {
+              statistics: {
+                notes_created: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
+                notes_updated: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
+                notes_deleted: operation.entity_type === 'note' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0,
+                folders_created: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
+                folders_updated: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
+                folders_deleted: operation.entity_type === 'folder' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0,
+                reviews_created: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.CREATE ? 1 : 0,
+                reviews_updated: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.UPDATE ? 1 : 0,
+                reviews_deleted: operation.entity_type === 'review' && operation.operation_type === SyncOperationType.DELETE ? 1 : 0
+              }
+            })
+          }
 
             if (result.success) {
               // 生成服务器更新
@@ -932,7 +971,7 @@ private startHeartbeatCheck(): void {
       const serverSideUpdates = await this.getServerUpdates(
         user_id,
         request.client_state.last_sync_time,
-        request.entity_types || ['note', 'folder', 'review']
+        ['note', 'folder', 'review'] as const
       )
 
       // 更新客户端状态
@@ -1006,6 +1045,8 @@ private startHeartbeatCheck(): void {
     }
 
     try {
+      const opType = operation.operation_type as string
+      
       switch (operation.operation_type) {
         case SyncOperationType.CREATE:
           return await this.executeCreate(user_id, operation as any)
@@ -1016,7 +1057,8 @@ private startHeartbeatCheck(): void {
         case SyncOperationType.READ:
           return await this.executeRead(user_id, operation as any)
         default:
-          throw new Error(`Unknown operation type: ${operation.operation_type}`)
+          result.error = `Unknown operation type: ${opType}`
+          return result
       }
     } catch (error) {
       result.error = (error as Error).message
@@ -1649,13 +1691,13 @@ private startHeartbeatCheck(): void {
       }
     }
 
-    const activeSyncs = Array.from(this.activeSyncs.values())
+    const activeSyncsArray = Array.from(this.activeSyncs.values())
       .filter(sync => sync.user_id === user_id)
 
     return {
       success: true,
       data: {
-        active_syncs,
+        active_syncs: activeSyncsArray,
         sync_history: []
       }
     }
@@ -1753,7 +1795,7 @@ private startHeartbeatCheck(): void {
     if (request.entity_id) {
       // 获取特定实体的差异
       const serverRecord = await this.getRecord(request.entity_type, request.entity_id, user_id)
-      const clientRecord = request.client_data
+      const clientRecord = (request as any).client_data
 
       if (serverRecord && clientRecord) {
         const diff = this.calculateEntityDiff(request.entity_type, request.entity_id, serverRecord, clientRecord)

@@ -1,0 +1,131 @@
+name: 健康检查
+
+on:
+  schedule:
+    # 每小时检查一次
+    - cron: '0 * * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  health-check:
+    name: 生产环境健康检查
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检查后端API
+      id: check-backend
+      run: |
+        echo "🔍 检查后端API健康状态..."
+        
+        response=$(curl -s -w "\n%{http_code}" http://120.26.50.152/api/health --connect-timeout 10)
+        http_code=$(echo "$response" | tail -n1)
+        body=$(echo "$response" | head -n-1)
+        
+        echo "HTTP状态码: $http_code"
+        echo "响应体: $body"
+        
+        if [ "$http_code" = "200" ]; then
+            echo "✅ 后端API正常"
+            echo "status=healthy" >> $GITHUB_OUTPUT
+        else
+            echo "❌ 后端API异常"
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
+        fi
+    
+    - name: 检查前端页面
+      id: check-frontend
+      run: |
+        echo "🔍 检查前端页面..."
+        
+        response=$(curl -s -w "\n%{http_code}" http://120.26.50.152/ --connect-timeout 10)
+        http_code=$(echo "$response" | tail -n1)
+        
+        echo "HTTP状态码: $http_code"
+        
+        if [ "$http_code" = "200" ]; then
+            echo "✅ 前端页面正常"
+            echo "status=healthy" >> $GITHUB_OUTPUT
+        else
+            echo "❌ 前端页面异常"
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            exit 1
+        fi
+    
+    - name: 检查数据库连接
+      id: check-database
+      run: |
+        echo "🔍 检查数据库连接..."
+        
+        # 使用curl测试数据库API端点（如果有）
+        response=$(curl -s -w "\n%{http_code}" http://120.26.50.152/api/health/db --connect-timeout 10 2>/dev/null || echo "000")
+        http_code=$(echo "$response" | tail -n1)
+        
+        if [ "$http_code" = "200" ]; then
+            echo "✅ 数据库连接正常"
+            echo "status=healthy" >> $GITHUB_OUTPUT
+        else
+            echo "⚠️  无法直接检查数据库连接（可能缺少相关API）"
+            echo "status=skipped" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: 生成健康报告
+      if: always()
+      run: |
+        echo ""
+        echo "📊 健康检查报告"
+        echo "================"
+        echo "时间: $(date)"
+        echo "后端API: ${{ steps.check-backend.outputs.status }}"
+        echo "前端页面: ${{ steps.check-frontend.outputs.status }}"
+        echo "数据库: ${{ steps.check-database.outputs.status }}"
+        echo ""
+        echo "详细日志: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+    
+    - name: 创建Issue通知
+      if: failure()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const title = `🚨 生产环境健康检查失败 - ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+          const body = `
+          ## 健康检查失败
+          
+          **检查时间:** ${new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}
+          
+          **检查结果:**
+          - 后端API: ${{ steps.check-backend.outputs.status }}
+          - 前端页面: ${{ steps.check-frontend.outputs.status }}
+          - 数据库: ${{ steps.check-database.outputs.status }}
+          
+          **工作流链接:** https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          
+          请立即检查服务器状态！
+          `;
+          
+          // 创建或更新Issue
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: ['health-check', 'urgent']
+          });
+          
+          const existingIssue = issues.data.find(issue => issue.title.includes('健康检查失败'));
+          
+          if (existingIssue) {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: body
+            });
+          } else {
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['health-check', 'urgent']
+            });
+          }

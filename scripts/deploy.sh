@@ -75,6 +75,7 @@ set -e
 REMOTE_DIR="/var/www/webnote"
 BACKUP_DIR="/var/backups/webnote"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+DEPLOY_DIR=$(ls -td /tmp/webnote_* | head -1)
 
 echo "停止服务..."
 pm2 stop webnote-backend || true
@@ -87,15 +88,15 @@ mkdir -p "$BACKUP_DIR"
 echo "部署新版本..."
 rm -rf "$REMOTE_DIR/backend"
 rm -rf "$REMOTE_DIR/web"
-mv /tmp/webnote_deploy/backend "$REMOTE_DIR/backend"
-mv /tmp/webnote_deploy/web "$REMOTE_DIR/web"
+cp -r "$DEPLOY_DIR/backend" "$REMOTE_DIR/backend"
+cp -r "$DEPLOY_DIR/web" "$REMOTE_DIR/web"
 
 echo "运行数据库迁移..."
 cd "$REMOTE_DIR/backend"
 npx prisma migrate deploy
 
 echo "启动服务..."
-pm2 restart webnote-backend || pm2 start ecosystem.config.js
+pm2 restart webnote-backend || pm2 start npm --name webnote-backend -- start
 
 echo "清理旧备份（保留最近7天）..."
 find "$BACKUP_DIR" -name "backend_*" -mtime +7 -delete
@@ -118,28 +119,89 @@ echo ""
 
 # 3. 上传到服务器
 echo -e "${YELLOW}[3/7] 上传到服务器...${NC}"
-scp /tmp/webnote_$TIMESTAMP.tar.gz "$SERVER:/tmp/"
+
+# 检查expect是否安装
+if ! command -v expect &> /dev/null; then
+    echo -e "${RED}错误: 未安装expect命令${NC}"
+    echo -e "${YELLOW}请运行: brew install expect${NC}"
+    exit 1
+fi
+
+# 使用expect自动上传
+PASSWORD="REDACTED_PASSWORD"
+expect << EOF
+set timeout 300
+spawn scp /tmp/webnote_$TIMESTAMP.tar.gz $SERVER:/tmp/
+expect {
+    "password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    "100%" {
+        expect eof
+    }
+    timeout {
+        puts "上传超时"
+        exit 1
+    }
+}
+EOF
+
 echo -e "${GREEN}✓ 上传完成${NC}"
 echo ""
 
 # 4. 解压并执行部署
 echo -e "${YELLOW}[4/7] 在服务器上执行部署...${NC}"
-ssh "$SERVER" << 'ENDSSH'
-set -e
 
-echo "解压文件..."
-cd /tmp
-tar -xzf webnote_*.tar.gz
-cd webnote_*
-
-echo "执行部署脚本..."
-bash deploy-remote.sh
-
-echo "清理临时文件..."
-cd /tmp
-rm -rf webnote_*
-rm -f webnote_*.tar.gz
-ENDSSH
+# 使用expect自动执行远程部署
+expect << EOF
+set timeout 600
+spawn ssh $SERVER
+expect {
+    "password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    "*$*" {
+        send "set -e\n"
+        expect "*$*"
+        send "echo '解压文件...'\n"
+        expect "*$*"
+        send "cd /tmp\n"
+        expect "*$*"
+        send "tar -xzf webnote_*.tar.gz\n"
+        expect "*$*"
+        send "cd webnote_*\n"
+        expect "*$*"
+        send "echo '执行部署脚本...'\n"
+        expect "*$*"
+        send "bash deploy-remote.sh\n"
+        expect "*$*"
+        send "echo '清理临时文件...'\n"
+        expect "*$*"
+        send "cd /tmp\n"
+        expect "*$*"
+        send "rm -rf webnote_*\n"
+        expect "*$*"
+        send "rm -f webnote_*.tar.gz\n"
+        expect "*$*"
+        send "exit\n"
+        expect eof
+    }
+    timeout {
+        puts "远程执行超时"
+        exit 1
+    }
+}
+EOF
 
 echo -e "${GREEN}✓ 服务器部署完成${NC}"
 echo ""

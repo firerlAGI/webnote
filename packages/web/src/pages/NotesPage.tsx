@@ -1,197 +1,148 @@
-import React, { useState, useEffect } from 'react';
-import { CyberCard, CyberButton, CyberBadge } from '../components/CyberUI';
-import { Note, Folder } from '../types';
-import { Folder as FolderIcon, Search, Save, Plus, Trash2, Pin, Database } from 'lucide-react';
-import { notesAPI, foldersAPI } from '../api';
+import React, { useState, useEffect, useRef } from 'react';
+import { useData } from '../contexts/DataContext';
+import { CyberCard, CyberButton, CyberTextArea, CyberTag, CyberScrambleText } from '../components/CyberUI';
+import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Save, Cloud, Hash, ChevronRight, FileCode, Code } from 'lucide-react';
 
 const NotesPage: React.FC = () => {
-  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
+  const { notes, folders, addNote, updateNote, deleteNote } = useData();
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  
+  // View States
+  const [viewMode, setViewMode] = useState<'write' | 'read'>('write');
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'synced'>('synced');
 
-  // 加载笔记列表
-  useEffect(() => {
-    loadNotes();
-    loadFolders();
-  }, []);
-
-  const loadNotes = async () => {
-    try {
-      setLoading(true);
-      const response = await notesAPI.getAll();
-      if (response.data.success) {
-        const notesData = response.data.data.notes || response.data.data || [];
-        setNotes(notesData);
-        if (notesData.length > 0 && !selectedNoteId) {
-          setSelectedNoteId(notesData[0].id);
-        }
-      } else {
-        // 使用Mock数据作为fallback
-        const mockNotes: Note[] = [
-          {
-            id: 1,
-            user_id: 1,
-            title: '欢迎使用 WebNote',
-            content: '这是一个示例笔记。\n\n# 功能介绍\n- 笔记管理\n- 每日复盘\n- 快速搜索\n\n点击右上角的编辑按钮开始编辑这条笔记。',
-            is_pinned: true,
-            folder_id: 1,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            last_accessed_at: new Date().toISOString()
-          },
-          {
-            id: 2,
-            user_id: 1,
-            title: '项目开发计划',
-            content: '## 待办事项\n- [x] 完成前后端结合\n- [x] 集成认证流程\n- [ ] 添加单元测试\n- [ ] 部署到生产环境\n\n## 备注\n注意时间节点和依赖关系。',
-            is_pinned: false,
-            folder_id: 2,
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            updated_at: new Date(Date.now() - 86400000).toISOString(),
-            last_accessed_at: new Date().toISOString()
-          },
-          {
-            id: 3,
-            user_id: 1,
-            title: '技术笔记：React Hooks',
-            content: '## useState\n用于管理组件状态。\n\n## useEffect\n用于处理副作用。\n\n## useCallback\n优化回调函数性能。\n\n## useMemo\n缓存计算结果。',
-            is_pinned: false,
-            folder_id: 1,
-            created_at: new Date(Date.now() - 172800000).toISOString(),
-            updated_at: new Date(Date.now() - 172800000).toISOString(),
-            last_accessed_at: new Date().toISOString()
-          }
-        ];
-        setNotes(mockNotes);
-        if (!selectedNoteId) {
-          setSelectedNoteId(mockNotes[0].id);
-        }
-        console.warn('API调用失败，使用Mock数据');
-      }
-    } catch (err: any) {
-      console.error('Failed to load notes:', err);
-      // 使用Mock数据作为fallback
-      const mockNotes: Note[] = [
-        {
-          id: 1,
-          user_id: 1,
-          title: '欢迎使用 WebNote',
-          content: '这是一个示例笔记。\n\n# 功能介绍\n- 笔记管理\n- 每日复盘\n- 快速搜索\n\n点击右上角的编辑按钮开始编辑这条笔记。',
-          is_pinned: true,
-          folder_id: 1,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_accessed_at: new Date().toISOString()
-        }
-      ];
-      setNotes(mockNotes);
-      if (!selectedNoteId) {
-        setSelectedNoteId(mockNotes[0].id);
-      }
-      setError(err.response?.data?.error || 'API连接失败，使用Mock数据');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadFolders = async () => {
-    try {
-      const response = await foldersAPI.getAll();
-      if (response.data.success) {
-        setFolders(response.data.data);
-      }
-    } catch (err: any) {
-      console.error('Failed to load folders:', err);
-      // 使用Mock数据作为fallback
-      const mockFolders: Folder[] = [
-        {
-          id: 1,
-          user_id: 1,
-          name: '全部笔记',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 2,
-          user_id: 1,
-          name: '工作',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        },
-        {
-          id: 3,
-          user_id: 1,
-          name: '学习',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      ];
-      setFolders(mockFolders);
-    }
-  };
-
+  // Editor Refs & State
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedNote = notes.find(n => n.id === selectedNoteId);
+  
+  // Refs for Editor
+  const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
-  // 保存笔记
-  const handleSave = async () => {
-    if (!selectedNote) return;
-    
-    try {
-      setLoading(true);
-      await notesAPI.update(selectedNote.id, {
-        title: selectedNote.title,
-        content: selectedNote.content,
-        is_pinned: selectedNote.is_pinned,
-        folder_id: selectedNote.folder_id,
-      });
-      setIsEditing(false);
-      await loadNotes(); // 重新加载数据
-    } catch (err: any) {
-      console.error('Failed to save note:', err);
-      setError(err.response?.data?.error || '保存失败');
-      setLoading(false);
+  // Initialize Selection
+  useEffect(() => {
+    if (!selectedNoteId && notes.length > 0) {
+      setSelectedNoteId(notes[0].id);
     }
+  }, [notes, selectedNoteId]);
+
+  // Simulated Auto-Save Logic
+  const handleContentChange = (key: 'title' | 'content', value: string) => {
+    if (!selectedNoteId) return;
+
+    setSaveStatus('saving');
+    
+    // Immediate local update
+    updateNote(selectedNoteId, { [key]: value } as any);
+
+    // Debounce the "Synced" status
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus('synced');
+    }, 800);
   };
 
-  // 删除笔记
-  const handleDelete = async (noteId: number) => {
-    if (!confirm('确定要删除这条笔记吗？')) return;
-    
-    try {
-      setLoading(true);
-      await notesAPI.delete(noteId);
+  const handleCreateNew = () => {
+    addNote({
+      title: 'UNTITLED_PROTOCOL',
+      content: '',
+      folderId: '1',
+      isPinned: false,
+      tags: ['DRAFT']
+    });
+  };
+
+  const handleDelete = () => {
+    if (!selectedNoteId) return;
+    if (window.confirm('WARNING: PERMANENT DATA DELETION REQUESTED.\nCONFIRM?')) {
+      deleteNote(selectedNoteId);
       setSelectedNoteId(null);
-      await loadNotes();
-    } catch (err: any) {
-      console.error('Failed to delete note:', err);
-      setError(err.response?.data?.error || '删除失败');
-      setLoading(false);
     }
   };
 
-  // 创建新笔记
-  const handleCreate = async () => {
-    try {
-      setLoading(true);
-      const response = await notesAPI.create({
-        title: '新笔记',
-        content: '',
-        is_pinned: false,
-      });
-      if (response.data.success) {
-        await loadNotes();
-        setSelectedNoteId(response.data.data.id);
-        setIsEditing(true);
+  // --- Code Block Logic ---
+  const insertCodeBlock = () => {
+    const textarea = textAreaRef.current;
+    if (!textarea || !selectedNote) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = selectedNote.content;
+    
+    // Template for code block
+    const codeBlockTemplate = "\n```javascript\n\n```\n";
+
+    const newContent = text.substring(0, start) + codeBlockTemplate + text.substring(end);
+    
+    handleContentChange('content', newContent);
+
+    // Restore focus and move cursor inside the block
+    setTimeout(() => {
+      textarea.focus();
+      // Position cursor after ```javascript\n
+      const cursorPosition = start + 13; 
+      textarea.setSelectionRange(cursorPosition, cursorPosition);
+    }, 0);
+  };
+
+  // --- Markdown Renderer (Text + Code Blocks) ---
+  const renderMarkdown = (text: string) => {
+    // Regex to split by code blocks: ```lang ... ```
+    // Captures the whole block including backticks
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    
+    return parts.map((part, index) => {
+      // Check if this part is a code block
+      if (part.startsWith('```') && part.endsWith('```')) {
+        const content = part.slice(3, -3).trim(); // Remove backticks
+        // Extract language if present (first line)
+        const firstLineBreak = content.indexOf('\n');
+        let language = 'TEXT';
+        let code = content;
+
+        if (firstLineBreak !== -1) {
+          const firstLine = content.substring(0, firstLineBreak).trim();
+          if (firstLine && !firstLine.includes(' ')) {
+             language = firstLine.toUpperCase();
+             code = content.substring(firstLineBreak + 1);
+          }
+        }
+
+        return (
+          <div key={index} className="my-6 relative group rounded overflow-hidden border border-gray-800 bg-[#0c0c0c]">
+             {/* Code Header */}
+             <div className="flex items-center justify-between px-4 py-1.5 bg-white/5 border-b border-gray-800">
+                <div className="flex gap-1.5">
+                   <div className="w-2 h-2 rounded-full bg-red-500/50"></div>
+                   <div className="w-2 h-2 rounded-full bg-yellow-500/50"></div>
+                   <div className="w-2 h-2 rounded-full bg-green-500/50"></div>
+                </div>
+                <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{language}</span>
+             </div>
+             
+             {/* Code Body */}
+             <div className="p-4 overflow-x-auto relative">
+                {/* Decorative Line Number Strip (Fake) */}
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyber-pink/50"></div>
+                <pre className="font-mono text-xs md:text-sm text-gray-300 leading-relaxed tab-4">
+                  <code>{code}</code>
+                </pre>
+             </div>
+
+             {/* Hover Glow */}
+             <div className="absolute inset-0 pointer-events-none border-2 border-transparent group-hover:border-cyber-pink/20 transition-colors rounded"></div>
+          </div>
+        );
       }
-    } catch (err: any) {
-      console.error('Failed to create note:', err);
-      setError(err.response?.data?.error || '创建失败');
-      setLoading(false);
-    }
+      
+      // Regular text (handle newlines)
+      return (
+        <span key={index} className="whitespace-pre-wrap">
+          {part}
+        </span>
+      );
+    });
   };
 
   const filteredNotes = notes.filter(n => 
@@ -199,157 +150,245 @@ const NotesPage: React.FC = () => {
     n.content.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading && notes.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-gray-500 font-mono">加载中...</div>
-      </div>
-    );
-  }
-
-  if (error && notes.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-red-500 font-mono">{error}</div>
-      </div>
-    );
-  }
+  const wordCount = selectedNote?.content.trim().split(/\s+/).filter(w => w.length > 0).length || 0;
+  const charCount = selectedNote?.content.length || 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 h-[calc(100vh-100px)]">
+    <div className="flex h-[calc(100vh-100px)] gap-6 transition-all duration-500">
       
-      {/* Sidebar: Folders & List */}
-      <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-4 h-full">
-        {/* Search */}
-        <CyberCard noPadding className="flex items-center px-3 py-2">
-          <Search className="text-gray-500 mr-2" size={18} />
-          <input 
-            type="text" 
-            placeholder="检索数据库..." 
-            className="bg-transparent border-none outline-none text-cyber-cyan placeholder-gray-600 font-mono w-full text-sm"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </CyberCard>
+      {/* --- LEFT SIDEBAR: DATA MATRIX --- */}
+      <div 
+        className={`flex flex-col gap-4 transition-all duration-500 ease-in-out ${
+          isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-1/3 lg:w-1/4 opacity-100'
+        }`}
+      >
+        {/* Search Matrix */}
+        <div className="relative group">
+          <div className="absolute inset-0 bg-cyber-cyan/5 skew-x-[-10deg] rounded border border-gray-800 group-hover:border-cyber-cyan/50 transition-colors"></div>
+          <div className="relative flex items-center px-4 py-3 z-10">
+            <span className="text-cyber-cyan mr-2 font-mono">{'>'}</span>
+            <input 
+              type="text" 
+              placeholder="SEARCH_QUERY..." 
+              className="bg-transparent border-none outline-none text-cyber-cyan placeholder-gray-700 font-mono w-full text-sm uppercase tracking-wider"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <Search className="text-gray-600 w-4 h-4 animate-pulse" />
+          </div>
+        </div>
 
-        {/* Folders (Horizontal Scroller for this layout) */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+        {/* Folder Chips */}
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide shrink-0">
           {folders.map(f => (
-            <button key={f.id} className="flex items-center gap-2 px-3 py-1 border border-gray-800 bg-cyber-dark hover:border-cyber-cyan/50 rounded-sm text-xs font-mono text-gray-300 whitespace-nowrap transition-all">
-              <FolderIcon size={12} className="text-cyber-yellow" />
+            <button key={f.id} className="flex items-center gap-2 px-3 py-1.5 border border-gray-800 bg-black/40 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 rounded-sm text-[10px] font-mono text-gray-400 hover:text-white transition-all whitespace-nowrap group">
+              <Folder size={10} className="text-gray-600 group-hover:text-cyber-yellow transition-colors" />
               {f.name}
             </button>
           ))}
         </div>
 
-        {/* Note List */}
-        <CyberCard className="flex-1 overflow-hidden flex flex-col" noPadding>
-          <div className="flex-1 overflow-y-auto p-2 space-y-2">
-            {filteredNotes.map(note => (
-              <div 
-                key={note.id}
-                onClick={() => setSelectedNoteId(note.id)}
-                className={`p-3 border-l-2 cursor-pointer transition-all ${
-                  selectedNoteId === note.id 
-                    ? 'border-cyber-cyan bg-cyber-cyan/10' 
-                    : 'border-transparent hover:bg-white/5'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <h4 className={`font-mono font-bold text-sm truncate ${selectedNoteId === note.id ? 'text-cyber-cyan' : 'text-gray-300'}`}>
-                    {note.title}
-                  </h4>
-                  {note.is_pinned && <Pin size={12} className="text-cyber-pink" />}
-                </div>
-                <p className="text-xs text-gray-500 line-clamp-2 font-sans">{note.content}</p>
+        {/* The List */}
+        <CyberCard className="flex-1 overflow-hidden flex flex-col" noPadding variant="flat">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {filteredNotes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-40 opacity-50">
+                <Hash className="text-gray-700 mb-2" />
+                <span className="text-xs font-mono text-gray-600">NO DATA FOUND</span>
               </div>
-            ))}
+            ) : (
+              <div className="divide-y divide-gray-800/50">
+                {filteredNotes.map(note => (
+                  <div 
+                    key={note.id}
+                    onClick={() => setSelectedNoteId(note.id)}
+                    className={`group relative p-4 cursor-pointer transition-all duration-200 border-l-2 hover:bg-white/5 ${
+                      selectedNoteId === note.id 
+                        ? 'border-cyber-cyan bg-cyber-cyan/5' 
+                        : 'border-transparent'
+                    }`}
+                  >
+                    <div className="absolute top-0 right-0 w-0 h-[1px] bg-cyber-cyan group-hover:w-full transition-all duration-700 opacity-50"></div>
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className={`font-mono font-bold text-sm truncate pr-4 ${selectedNoteId === note.id ? 'text-cyber-cyan' : 'text-gray-300 group-hover:text-white'}`}>
+                        {note.title || 'UNTITLED'}
+                      </h4>
+                      {note.isPinned && <Pin size={10} className="text-cyber-pink shrink-0 mt-1" />}
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                       <span className="text-[9px] font-mono text-gray-600">
+                          {new Date(note.updatedAt).toLocaleDateString(undefined, {month:'2-digit', day:'2-digit'})} <span className="text-gray-700">|</span> {new Date(note.updatedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                       </span>
+                       <div className="flex gap-1">
+                          {note.tags.slice(0, 1).map(t => (
+                            <span key={t} className="text-[8px] px-1 py-0.5 border border-gray-800 rounded text-gray-500 font-mono bg-black">{t}</span>
+                          ))}
+                       </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="p-3 border-t border-gray-800">
-             <CyberButton className="w-full text-sm" onClick={handleCreate}>
-               <Plus size={16} /> 新建条目
-             </CyberButton>
+          <div className="p-2 border-t border-gray-800 bg-black/20">
+             <button 
+               onClick={handleCreateNew}
+               className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-700 hover:border-cyber-cyan text-gray-500 hover:text-cyber-cyan transition-all text-xs font-mono group"
+             >
+               <Plus size={14} className="group-hover:rotate-90 transition-transform" />
+               INITIATE_NEW_ENTRY
+             </button>
           </div>
         </CyberCard>
       </div>
 
-      {/* Main Editor */}
-      <div className="md:col-span-8 lg:col-span-9 h-full">
+      {/* --- RIGHT EDITOR: TACTICAL TERMINAL --- */}
+      <div className={`flex-1 flex flex-col h-full relative transition-all duration-500 ${isFocusMode ? 'max-w-4xl mx-auto' : ''}`}>
+        
         {selectedNote ? (
-          <CyberCard className="h-full flex flex-col" noPadding>
-            {/* Toolbar */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-800 bg-cyber-dark/50">
-              <div className="flex flex-col flex-1 mr-4">
-                <input 
-                   disabled={!isEditing}
-                   className="bg-transparent text-xl font-display font-bold text-white outline-none w-full"
-                   value={selectedNote.title}
-                   onChange={(e) => {
-                     const updated = { ...selectedNote, title: e.target.value };
-                     setNotes(notes.map(n => n.id === n.id ? updated : n));
-                   }}
-                />
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-mono text-gray-500">ID: {selectedNote.id}</span>
-                  <span className="text-xs font-mono text-gray-600">|</span>
-                  <span className="text-xs font-mono text-gray-500">上次更新: {new Date(selectedNote.updated_at).toLocaleString('zh-CN')}</span>
-                </div>
+          <CyberCard className="h-full flex flex-col overflow-hidden shadow-2xl" noPadding variant="default">
+            
+            {/* 1. Tactical Toolbar */}
+            <div className="shrink-0 h-14 bg-black/40 border-b border-gray-800 flex items-center justify-between px-4 select-none">
+              
+              {/* Left: Focus Toggle */}
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setIsFocusMode(!isFocusMode)}
+                  className="p-2 text-gray-500 hover:text-cyber-cyan hover:bg-cyber-cyan/10 rounded transition-all"
+                  title={isFocusMode ? "Exit Focus" : "Focus Mode"}
+                >
+                  {isFocusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+                <div className="w-[1px] h-4 bg-gray-800 mx-1"></div>
+                
+                {/* Insert Code Block Button */}
+                <button
+                  onClick={insertCodeBlock}
+                  className="p-2 text-gray-500 hover:text-cyber-pink hover:bg-cyber-pink/10 rounded transition-all group"
+                  title="Insert Code Block"
+                  disabled={viewMode === 'read'}
+                >
+                  <Code size={16} className={viewMode === 'write' ? 'group-hover:text-cyber-pink' : 'opacity-30'} />
+                </button>
               </div>
-              <div className="flex gap-2">
-                 {isEditing ? (
-                   <CyberButton variant="primary" onClick={handleSave} className="h-8 text-xs">
-                     <Save size={14} /> 保存
-                   </CyberButton>
-                 ) : (
-                   <CyberButton variant="secondary" onClick={() => setIsEditing(true)} className="h-8 text-xs">
-                     编辑模式
-                   </CyberButton>
-                 )}
-                 <button 
-                   onClick={() => handleDelete(selectedNote.id)}
-                   className="p-2 text-gray-500 hover:text-cyber-pink transition-colors"
-                 >
+
+              {/* Center: Mode Switcher */}
+              <div className="flex items-center bg-black/60 rounded-lg p-1 border border-gray-800">
+                <button 
+                  onClick={() => setViewMode('write')}
+                  className={`flex items-center gap-2 px-3 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                    viewMode === 'write' ? 'bg-cyber-cyan/20 text-cyber-cyan shadow-[0_0_10px_rgba(0,243,255,0.1)]' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  <Edit3 size={12} /> WRITE
+                </button>
+                <div className="w-[1px] h-3 bg-gray-800 mx-1"></div>
+                <button 
+                  onClick={() => setViewMode('read')}
+                  className={`flex items-center gap-2 px-3 py-1 rounded text-[10px] font-mono font-bold transition-all ${
+                    viewMode === 'read' ? 'bg-cyber-pink/20 text-cyber-pink shadow-[0_0_10px_rgba(255,0,85,0.1)]' : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  <Eye size={12} /> DECODE
+                </button>
+              </div>
+
+              {/* Right: Actions & Status */}
+              <div className="flex items-center gap-3">
+                 <div className="hidden md:flex items-center gap-2 text-[10px] font-mono">
+                    <span className={`w-1.5 h-1.5 rounded-full ${saveStatus === 'saving' ? 'bg-cyber-yellow animate-pulse' : 'bg-green-500'}`}></span>
+                    <span className={saveStatus === 'saving' ? 'text-cyber-yellow' : 'text-gray-500'}>
+                      {saveStatus === 'saving' ? 'UPLOADING...' : 'SYNCED'}
+                    </span>
+                 </div>
+                 <div className="h-4 w-[1px] bg-gray-800 mx-1"></div>
+                 <button onClick={handleDelete} className="text-gray-600 hover:text-cyber-pink transition-colors">
                    <Trash2 size={16} />
                  </button>
               </div>
             </div>
 
-            {/* Editor / Preview Area */}
-            <div className="flex-1 bg-black/40 relative">
-              {isEditing ? (
-                <textarea 
-                  className="w-full h-full bg-transparent p-6 text-gray-300 font-mono text-sm outline-none resize-none leading-relaxed"
-                  value={selectedNote.content}
-                  onChange={(e) => {
-                     const updated = { ...selectedNote, content: e.target.value };
-                     setNotes(notes.map(n => n.id === n.id ? updated : n));
-                  }}
-                />
-              ) : (
-                <div className="p-6 prose prose-invert max-w-none prose-headings:font-display prose-headings:text-cyber-cyan prose-p:text-gray-300 prose-code:text-cyber-yellow prose-pre:bg-gray-900 prose-pre:border prose-pre:border-gray-700">
-                  <h1 className="text-2xl font-bold mb-4 text-cyber-cyan">{selectedNote.title}</h1>
-                  {selectedNote.content.split('\n').map((line: string, i: number) => (
-                    <p key={i} className="mb-2 font-mono text-sm">
-                      {line.startsWith('#') ? <span className="text-lg font-bold text-cyber-pink">{line.replace(/#/g, '')}</span> : line}
-                    </p>
+            {/* 2. Meta Header */}
+            <div className="shrink-0 px-6 pt-6 pb-2 bg-gradient-to-b from-black/20 to-transparent">
+               <input 
+                  value={selectedNote.title}
+                  onChange={(e) => handleContentChange('title', e.target.value)}
+                  placeholder="UNTITLED_ENTRY"
+                  className="w-full bg-transparent text-2xl md:text-3xl font-display font-bold text-white placeholder-gray-700 outline-none border-none p-0 focus:ring-0"
+               />
+               <div className="flex items-center gap-2 mt-3 overflow-x-auto scrollbar-hide">
+                  <Hash size={12} className="text-cyber-cyan/50" />
+                  {selectedNote.tags.map((tag, idx) => (
+                    <CyberTag key={idx} label={tag} onRemove={() => {
+                       const newTags = selectedNote.tags.filter(t => t !== tag);
+                       updateNote(selectedNote.id, { tags: newTags });
+                    }} />
                   ))}
-                </div>
-              )}
+                  <button 
+                    className="text-[10px] px-2 py-0.5 border border-dashed border-gray-700 text-gray-600 hover:text-cyber-cyan hover:border-cyber-cyan transition-colors rounded-sm"
+                    onClick={() => {
+                       const tag = prompt("ADD TAG (e.g. WORK):");
+                       if (tag) updateNote(selectedNote.id, { tags: [...selectedNote.tags, tag] });
+                    }}
+                  >
+                    + TAG
+                  </button>
+               </div>
             </div>
-            
-            {/* Status Bar */}
-            <div className="p-2 bg-cyber-black border-t border-gray-800 flex justify-between items-center text-[10px] font-mono text-gray-600">
-              <span>字数: {selectedNote.content.split(' ').length}</span>
-              <span>同步状态: <span className="text-cyber-cyan">已连接</span></span>
+
+            {/* 3. Main Editor / Preview Area */}
+            <div className="flex-1 relative overflow-hidden group">
+               <div className="absolute inset-0 bg-cyber-grid bg-[length:40px_40px] opacity-5 pointer-events-none"></div>
+               
+               {viewMode === 'write' ? (
+                  <CyberTextArea 
+                    ref={textAreaRef}
+                    value={selectedNote.content}
+                    onChange={(e) => handleContentChange('content', e.target.value)}
+                    placeholder="// START_DATA_ENTRY..."
+                    className="leading-relaxed font-mono text-gray-300 text-sm md:text-base p-6 md:p-8"
+                    spellCheck={false}
+                  />
+               ) : (
+                  <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-6 md:p-8">
+                     <div className="prose prose-invert prose-p:font-sans prose-headings:font-display prose-headings:text-cyber-cyan prose-code:text-cyber-pink prose-code:font-mono max-w-none">
+                        <div className="whitespace-pre-wrap">
+                          {selectedNote.content ? renderMarkdown(selectedNote.content) : <span className="text-gray-600 italic">// EMPTY_BUFFER</span>}
+                        </div>
+                     </div>
+                  </div>
+               )}
             </div>
+
+            {/* 4. Footer Status Bar */}
+            <div className="shrink-0 h-8 bg-black/60 border-t border-gray-800 flex items-center justify-between px-4 text-[9px] font-mono text-gray-500 select-none">
+               <div className="flex gap-4">
+                  <span>Ln {selectedNote.content.split('\n').length}, Col {selectedNote.content.length}</span>
+                  <span>{wordCount} WORDS</span>
+                  <span>{charCount} CHARS</span>
+               </div>
+               <div className="flex items-center gap-2">
+                  <FileCode size={10} />
+                  <span>MARKDOWN_SUPPORT: ACTIVE</span>
+               </div>
+            </div>
+
           </CyberCard>
         ) : (
-          <div className="h-full flex items-center justify-center flex-col text-gray-600">
-             <Database size={48} className="mb-4 opacity-20" />
-             <p className="font-mono">请选择数据源...</p>
+          /* Empty State */
+          <div className="h-full flex flex-col items-center justify-center border border-gray-800 rounded bg-black/20 relative overflow-hidden group">
+             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyber-cyan/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+             <Cloud size={48} className="mb-4 text-gray-700 group-hover:text-cyber-cyan transition-colors duration-500" />
+             <div className="text-xl font-display font-bold text-gray-500 tracking-widest group-hover:text-white transition-colors">WAITING FOR INPUT</div>
+             <div className="text-xs font-mono text-gray-600 mt-2 flex items-center gap-2">
+                <ChevronRight size={12} className="animate-pulse" />
+                SELECT_DATA_SOURCE
+             </div>
           </div>
         )}
       </div>
+
     </div>
   );
 };

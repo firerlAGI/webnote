@@ -54,13 +54,11 @@ class OSSConfigManager {
       backupPrefix: process.env.OSS_BACKUP_PREFIX || 'backups',
     };
 
-    // 验证必要配置（在开发环境中可以是可选的）
+    // 验证必要配置
     this.isConfigured = !!(this.config.accessKeyId && this.config.accessKeySecret && this.config.bucket);
     
-    if (process.env.NODE_ENV !== 'production' && !this.isConfigured) {
+    if (!this.isConfigured) {
       console.warn('OSS配置不完整，备份功能将被禁用');
-    } else if (process.env.NODE_ENV === 'production' && !this.isConfigured) {
-      this.validateConfig();
     }
   }
 

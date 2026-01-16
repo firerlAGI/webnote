@@ -337,6 +337,7 @@ export class ConflictService {
     currentRecord: any
   ): Promise<ConflictRecord | null> {
     const operationType = operation.operation_type
+    const changes = (operation as any).changes || {}
 
     // 检测更新-删除冲突
     if (operationType === SyncOperationType.UPDATE && currentRecord.deleted_at) {
@@ -355,7 +356,7 @@ export class ConflictService {
         },
         client_data: {
           version: operation.before_version || 0,
-          data: (operation as any).changes || {},
+          data: changes || {},
           modified_at: operation.timestamp,
           operation_type: operation.operation_type
         },
@@ -376,7 +377,6 @@ export class ConflictService {
 
     // 检测重命名冲突
     if (operationType === SyncOperationType.UPDATE) {
-      const changes = (operation as any).changes || {}
       if (changes.title && currentRecord.title !== changes.title) {
         // 检查是否有其他客户端也修改了标题
         const hasConcurrentTitleChange = await this.checkConcurrentFieldChange(
@@ -596,13 +596,17 @@ export class ConflictService {
           result.new_version = conflict.server_data.version + 1
           break
 
-        case ConflictResolutionStrategy.LATEST_WINS:
-          result = await this.resolveByTimestamp(conflict)
+        case ConflictResolutionStrategy.LATEST_WINS: {
+          const timestampResult = await this.resolveByTimestamp(conflict)
+          Object.assign(result, timestampResult)
           break
+        }
 
-        case ConflictResolutionStrategy.MERGE:
-          result = await this.resolveByMerge(conflict)
+        case ConflictResolutionStrategy.MERGE: {
+          const mergeResult = await this.resolveByMerge(conflict)
+          Object.assign(result, mergeResult)
           break
+        }
 
         case ConflictResolutionStrategy.MANUAL:
           result.success = false
@@ -614,8 +618,8 @@ export class ConflictService {
       }
 
       // 更新冲突记录状态
-      if (result.success) {
-        await this.updateConflictStatus(conflict.conflict_id, 'resolved', strategy, result.resolved_data)
+      if (result.success && strategy) {
+        await this.updateConflictStatus(conflict.conflict_id, 'resolved', strategy as ConflictResolutionStrategy, result.resolved_data)
       }
 
       return result
@@ -660,11 +664,12 @@ export class ConflictService {
     }
 
     // 根据操作类型决定优先级
-    const operationPriority: Record<SyncOperationType, number> = {
+    const operationPriority: Partial<Record<SyncOperationType, number>> = {
       [SyncOperationType.DELETE]: 3, // 删除操作优先级最高
       [SyncOperationType.CREATE]: 2,
       [SyncOperationType.UPDATE]: 1,
-      [SyncOperationType.READ]: 0
+      [SyncOperationType.READ]: 0,
+      [SyncOperationType.RESOLVE]: 0.5 // 冲突解决操作优先级
     }
 
     const serverPriority = operationPriority[SyncOperationType.UPDATE]
@@ -692,7 +697,7 @@ export class ConflictService {
     conflict: ConflictRecord,
     config: ConflictResolutionStrategyConfig
   ): Promise<ConflictResolutionResult> {
-    const result: ConflictResolutionResult = {
+    let result: ConflictResolutionResult = {
       conflict_id: conflict.conflict_id,
       success: false
     }
@@ -787,7 +792,7 @@ export class ConflictService {
     const result: ConflictResolutionResult = {
       conflict_id: conflictId,
       success: true,
-      resolved_data,
+      resolved_data: resolvedData,
       new_version: conflict.server_data.version + 1
     }
 
@@ -918,29 +923,45 @@ export class ConflictService {
 
     switch (conflictType) {
       case ExtendedConflictType.CONCURRENT_UPDATE:
-        return config.concurrentUpdate === 'timestamp'
-          ? ConflictResolutionStrategy.LATEST_WINS
-          : ConflictResolutionStrategy.MANUAL
+        if (config.concurrentUpdate === 'timestamp') {
+          return ConflictResolutionStrategy.LATEST_WINS
+        } else if (config.concurrentUpdate === 'merge') {
+          return ConflictResolutionStrategy.MERGE
+        } else {
+          return ConflictResolutionStrategy.MANUAL
+        }
 
       case ExtendedConflictType.DELETE_UPDATE:
-        return config.deleteUpdate === 'delete_wins'
-          ? ConflictResolutionStrategy.SERVER_WINS
-          : ConflictResolutionStrategy.MANUAL
+        if (config.deleteUpdate === 'delete_wins') {
+          return ConflictResolutionStrategy.SERVER_WINS
+        } else if (config.deleteUpdate === 'update_wins') {
+          return ConflictResolutionStrategy.CLIENT_WINS
+        } else {
+          return ConflictResolutionStrategy.MANUAL
+        }
 
       case ExtendedConflictType.UPDATE_DELETE:
-        return config.updateDelete === 'timestamp'
-          ? ConflictResolutionStrategy.LATEST_WINS
-          : ConflictResolutionStrategy.MANUAL
+        if (config.updateDelete === 'timestamp') {
+          return ConflictResolutionStrategy.LATEST_WINS
+        } else {
+          return ConflictResolutionStrategy.MANUAL
+        }
 
       case ExtendedConflictType.RENAME_CONFLICT:
-        return config.renameConflict === 'merge'
-          ? ConflictResolutionStrategy.MERGE
-          : ConflictResolutionStrategy.MANUAL
+        if (config.renameConflict === 'merge') {
+          return ConflictResolutionStrategy.MERGE
+        } else if (config.renameConflict === 'append_suffix') {
+          return ConflictResolutionStrategy.LATEST_WINS
+        } else {
+          return ConflictResolutionStrategy.MANUAL
+        }
 
       case ExtendedConflictType.FOLDER_MOVE_CONFLICT:
-        return config.folderMoveConflict === 'timestamp'
-          ? ConflictResolutionStrategy.LATEST_WINS
-          : ConflictResolutionStrategy.MANUAL
+        if (config.folderMoveConflict === 'timestamp') {
+          return ConflictResolutionStrategy.LATEST_WINS
+        } else {
+          return ConflictResolutionStrategy.MANUAL
+        }
 
       default:
         return ConflictResolutionStrategy.LATEST_WINS

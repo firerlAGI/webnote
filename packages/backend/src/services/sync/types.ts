@@ -456,37 +456,6 @@ export interface GetSyncQueueRequest {
   limit?: number
 }
 
-/**
- * 队列中的同步操作
- */
-export interface QueuedSyncOperation {
-  /** 操作ID */
-  operation_id: string
-  /** 同步ID */
-  sync_id: string
-  /** 客户端ID */
-  client_id: string
-  /** 用户ID */
-  user_id: number
-  /** 操作类型 */
-  operation_type: SyncOperationType
-  /** 实体类型 */
-  entity_type: EntityType
-  /** 实体ID */
-  entity_id?: number
-  /** 操作数据 */
-  data?: Record<string, any>
-  /** 队列状态 */
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  /** 重试次数 */
-  retry_count: number
-  /** 创建时间 */
-  created_at: string
-  /** 预计处理时间 */
-  estimated_processing_time?: string
-  /** 错误信息（如果失败） */
-  error?: string
-}
 
 /**
  * 获取同步队列响应
@@ -1379,11 +1348,7 @@ export interface BatchResolveConflictApiRequest {
   /** 冲突解决列表 */
   resolutions: Array<{
     conflict_id: string
-    resolution: {
-      strategy: string
-      resolved_data?: Record<string, any>
-      auto_resolve: boolean
-    }
+    resolution: ConflictResolution
   }>
 }
 
@@ -1507,45 +1472,51 @@ export type QueuePriority = 'high' | 'medium' | 'low'
 export type QueueOperationStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 /**
- * 队列中的同步操作
+ * 队列中的同步操作（统一定义）
  */
 export interface QueuedSyncOperation {
   /** 操作ID */
-  id: string
+  operation_id: string
+  /** 同步ID */
+  sync_id: string
+  /** 客户端ID */
+  client_id: string
   /** 用户ID */
   user_id: number
   /** 设备ID */
   device_id: string
-  /** 客户端ID */
-  client_id: string
   /** 操作类型 */
-  operation_type: 'create' | 'update' | 'delete'
+  operation_type: SyncOperationType
   /** 实体类型 */
-  entity_type: 'note' | 'folder' | 'review'
-  /** 实体数据 */
-  entity_data: Record<string, any>
+  entity_type: EntityType
   /** 实体ID */
   entity_id?: number
+  /** 操作数据 */
+  data?: Record<string, any>
+  /** 实体数据 */
+  entity_data?: Record<string, any>
   /** 优先级 */
-  priority: QueuePriority
+  priority?: QueuePriority
+  /** 队列状态 */
+  status: 'pending' | 'processing' | 'completed' | 'failed'
   /** 重试次数 */
   retry_count: number
   /** 最大重试次数 */
-  max_retries: number
-  /** 状态 */
-  status: QueueOperationStatus
-  /** 错误信息 */
-  error?: string
+  max_retries?: number
   /** 创建时间 */
   created_at: string
   /** 更新时间 */
-  updated_at: string
+  updated_at?: string
   /** 预定执行时间 */
   scheduled_at?: string
   /** 完成时间 */
   completed_at?: string
   /** 开始处理时间 */
   started_at?: string
+  /** 预计处理时间 */
+  estimated_processing_time?: string
+  /** 错误信息（如果失败） */
+  error?: string
 }
 
 /**

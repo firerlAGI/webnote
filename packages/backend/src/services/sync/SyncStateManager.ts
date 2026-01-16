@@ -707,6 +707,8 @@ export class SyncStateManager extends EventEmitter {
    * 更新同步统计信息
    */
   private async updateSyncStatistics(sync: SyncStatusDetail): Promise<void> {
+    const avgDuration = await this.calculateAverageDuration(sync.user_id, sync)
+
     const stats = await this.prisma.syncStatistics.upsert({
       where: { user_id: sync.user_id },
       update: {
@@ -723,7 +725,7 @@ export class SyncStateManager extends EventEmitter {
         total_reviews_synced: {
           increment: sync.statistics.reviews_created + sync.statistics.reviews_updated + sync.statistics.reviews_deleted
         },
-        average_sync_duration: this.calculateAverageDuration(sync.user_id, sync)
+        average_sync_duration: avgDuration
       },
       create: {
         user_id: sync.user_id,
@@ -858,8 +860,12 @@ export class SyncStateManager extends EventEmitter {
         started_at: session.started_at,
         updated_at: session.updated_at,
         completed_at: session.completed_at || undefined,
-        operations: (session.operations as SyncOperationRecord[]) || [],
-        conflicts: (session.conflicts as any[]) || [],
+        operations: Array.isArray(session.operations)
+          ? (session.operations as unknown as SyncOperationRecord[])
+          : [],
+        conflicts: Array.isArray(session.conflicts)
+          ? (session.conflicts as unknown as any[])
+          : [],
         statistics: {
           notes_created: session.notes_created,
           notes_updated: session.notes_updated,

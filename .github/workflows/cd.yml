@@ -1,0 +1,237 @@
+name: CD - 自动部署
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  deploy:
+    name: 部署到生产环境
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装依赖
+      run: npm install -g pnpm && pnpm install
+    
+    - name: 构建共享包
+      run: |
+        cd packages/shared
+        npm run build
+    
+    - name: 构建后端
+      run: |
+        cd packages/backend
+        npm run build
+    
+    - name: 构建前端
+      run: |
+        cd packages/web
+        npm run build
+    
+    - name: 准备部署文件
+      run: |
+        mkdir -p deploy/backend
+        mkdir -p deploy/web
+        
+        # 复制后端文件
+        cp -r packages/backend/dist deploy/backend/
+        cp -r packages/backend/prisma deploy/backend/
+        cp packages/backend/package.json deploy/backend/
+        cp -r packages/backend/uploads deploy/backend/ 2>/dev/null || mkdir -p deploy/backend/uploads
+        
+        # 复制前端文件
+        cp -r packages/web/dist deploy/web/
+        
+        # 创建部署脚本
+        cat > deploy/deploy-remote.sh << 'EOFSCRIPT'
+        #!/bin/bash
+        set -e
+        
+        REMOTE_DIR="/var/www/webnote"
+        BACKUP_DIR="/var/backups/webnote"
+        TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+        
+        echo "📦 开始部署..."
+        echo "📅 时间: $(date)"
+        echo "🔍 检查服务状态..."
+        
+        # 检查PM2服务
+        if pm2 status | grep -q "webnote-backend"; then
+            echo "⏹️  停止现有服务..."
+            pm2 stop webnote-backend || true
+        fi
+        
+        # 备份现有版本
+        echo "💾 备份现有版本..."
+        mkdir -p "$BACKUP_DIR"
+        [ -d "$REMOTE_DIR/backend" ] && mv "$REMOTE_DIR/backend" "$BACKUP_DIR/backend_$TIMESTAMP" || true
+        [ -d "$REMOTE_DIR/web" ] && mv "$REMOTE_DIR/web" "$BACKUP_DIR/web_$TIMESTAMP" || true
+        
+        # 部署新版本
+        echo "🚀 部署新版本..."
+        rm -rf "$REMOTE_DIR/backend"
+        rm -rf "$REMOTE_DIR/web"
+        
+        cp -r /tmp/deploy/backend "$REMOTE_DIR/backend"
+        cp -r /tmp/deploy/web "$REMOTE_DIR/web"
+        
+        # 创建环境配置文件
+        echo "⚙️  配置环境变量..."
+        cat > "$REMOTE_DIR/backend/.env" << 'ENVEOF'
+        DATABASE_URL="postgresql://webnote_user:jefvef-3rubra-Rujrum@localhost:5432/webnote_db"
+        JWT_SECRET="${{ secrets.JWT_SECRET }}"
+        PORT=3000
+        NODE_ENV=production
+        ALLOWED_ORIGINS="http://120.26.50.152,https://120.26.50.152"
+        ENVEOF
+        
+        chmod 600 "$REMOTE_DIR/backend/.env"
+        
+        # 运行数据库迁移
+        echo "🗄️  运行数据库迁移..."
+        cd "$REMOTE_DIR/backend"
+        npx prisma migrate deploy || echo "⚠️  数据库迁移失败或无需迁移"
+        
+        # 配置Nginx
+        echo "🌐 配置Nginx..."
+        cat > /tmp/webnote-nginx.conf << 'NGINXEOF'
+        server {
+            listen 80;
+            server_name 120.26.50.152;
+            
+            # 前端静态文件
+            location / {
+                root /var/www/webnote/web/dist;
+                try_files $uri $uri/ /index.html;
+                add_header Cache-Control "public, max-age=3600";
+            }
+            
+            # 后端API代理
+            location /api {
+                proxy_pass http://localhost:3000;
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection 'upgrade';
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            
+            client_max_body_size 10M;
+            
+            gzip on;
+            gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+        }
+        NGINXEOF
+        
+        sudo mv /tmp/webnote-nginx.conf /etc/nginx/sites-available/webnote
+        sudo ln -sf /etc/nginx/sites-available/webnote /etc/nginx/sites-enabled/webnote
+        sudo nginx -t && sudo systemctl reload nginx
+        
+        # 启动服务
+        echo "▶️  启动服务..."
+        cd "$REMOTE_DIR/backend"
+        
+        # 检查是否已配置PM2
+        if ! pm2 status | grep -q "webnote-backend"; then
+            pm2 start npm --name webnote-backend -- start
+        else
+            pm2 restart webnote-backend
+        fi
+        
+        pm2 save
+        
+        # 清理旧备份（保留最近7天）
+        echo "🧹 清理旧备份..."
+        find "$BACKUP_DIR" -name "backend_*" -mtime +7 -delete 2>/dev/null || true
+        find "$BACKUP_DIR" -name "web_*" -mtime +7 -delete 2>/dev/null || true
+        
+        echo "✅ 部署完成！"
+        echo ""
+        echo "📊 服务状态:"
+        pm2 status
+        echo ""
+        echo "🌐 访问地址:"
+        echo "  - 前端: http://120.26.50.152"
+        echo "  - 后端API: http://120.26.50.152/api"
+        EOFSCRIPT
+        
+        chmod +x deploy/deploy-remote.sh
+    
+    - name: 创建压缩包
+      run: |
+        tar -czf /tmp/deploy.tar.gz -C deploy .
+        ls -lh /tmp/deploy.tar.gz
+    
+    - name: 上传到服务器
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        password: ${{ secrets.SERVER_PASSWORD }}
+        source: "/tmp/deploy.tar.gz"
+        target: "/tmp"
+    
+    - name: 解压并部署
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        password: ${{ secrets.SERVER_PASSWORD }}
+        script: |
+          cd /tmp
+          tar -xzf deploy.tar.gz -C /tmp/deploy
+          bash /tmp/deploy/deploy-remote.sh
+          rm -rf /tmp/deploy /tmp/deploy.tar.gz
+    
+    - name: 健康检查
+      run: |
+        echo "⏳ 等待服务启动..."
+        sleep 10
+        
+        echo "🔍 检查后端API..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://120.26.50.152/api/health || echo "000")
+        
+        if [ "$response" = "200" ]; then
+            echo "✅ 后端API正常 (HTTP $response)"
+        else
+            echo "❌ 后端API异常 (HTTP $response)"
+            exit 1
+        fi
+        
+        echo "🔍 检查前端页面..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://120.26.50.152/ || echo "000")
+        
+        if [ "$response" = "200" ]; then
+            echo "✅ 前端页面正常 (HTTP $response)"
+        else
+            echo "❌ 前端页面异常 (HTTP $response)"
+            exit 1
+        fi
+    
+    - name: 部署成功通知
+      if: success()
+      run: |
+        echo "🎉 部署成功！"
+        echo "📦 版本: ${{ github.sha }}"
+        echo "👤 提交者: ${{ github.actor }}"
+        echo "🔗 提交: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+    
+    - name: 部署失败通知
+      if: failure()
+      run: |
+        echo "❌ 部署失败！"
+        echo "📦 版本: ${{ github.sha }}"
+        echo "👤 提交者: ${{ github.actor }}"
+        echo "请检查日志并手动回滚"

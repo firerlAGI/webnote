@@ -14,17 +14,22 @@ export type Review = SharedReview;
 export type User = SharedUser;
 export type ApiResponse<T = any> = SharedApiResponse<T>;
 
-// 前端扩展类型
+// 前端扩展类型 - 适配 cyberpunk UI
 export interface UserExtended extends User {
   avatar?: string;
   role?: 'NET_RUNNER' | 'SYS_ADMIN' | 'USER';
 }
 
-export interface NoteExtended extends Note {
+export interface NoteExtended extends Omit<Note, 'is_pinned' | 'last_accessed_at' | 'created_at' | 'updated_at'> {
   tags?: string[]; // 前端可选的tags字段
+  isPinned?: boolean;
+  updatedAt?: string;
+  folderId?: number; // 前端使用 camelCase
 }
 
-export interface DailyReview extends Review {
+export interface DailyReview extends Omit<Review, 'date' | 'mood'> {
+  date?: string;
+  mood?: number; // 1-10
   productivity?: number; // 1-10
   tags?: string[];
 }

@@ -1,0 +1,138 @@
+name: CI - 测试与质量检查
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: 代码规范检查
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装依赖
+      run: npm install -g pnpm && pnpm install
+    
+    - name: ESLint检查
+      run: pnpm lint
+    
+    - name: Prettier检查
+      run: pnpm format:check
+
+  test:
+    name: 单元测试
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装依赖
+      run: npm install -g pnpm && pnpm install
+    
+    - name: 设置PostgreSQL
+      uses: ankane/setup-postgres@v1
+      with:
+        postgres-version: 14
+    
+    - name: 运行数据库迁移
+      run: |
+        cd packages/backend
+        echo "DATABASE_URL=postgresql://postgres@localhost:5432/test_db" > .env
+        npx prisma migrate dev
+      env:
+        DATABASE_URL: postgresql://postgres@localhost:5432/test_db
+    
+    - name: 运行后端测试
+      run: |
+        cd packages/backend
+        npm test
+      env:
+        DATABASE_URL: postgresql://postgres@localhost:5432/test_db
+    
+    - name: 上传测试覆盖率
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./packages/backend/coverage/lcov.info
+        flags: backend
+
+  build:
+    name: 构建检查
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: 安装依赖
+      run: npm install -g pnpm && pnpm install
+    
+    - name: 构建共享包
+      run: |
+        cd packages/shared
+        npm run build
+    
+    - name: 构建后端
+      run: |
+        cd packages/backend
+        npm run build
+    
+    - name: 构建前端
+      run: |
+        cd packages/web
+        npm run build
+    
+    - name: 检查构建产物
+      run: |
+        ls -la packages/backend/dist
+        ls -la packages/web/dist
+        ls -la packages/shared/dist
+
+  security:
+    name: 安全检查
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 检出代码
+      uses: actions/checkout@v3
+    
+    - name: 设置Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+    
+    - name: 安装依赖
+      run: npm install -g pnpm && pnpm install
+    
+    - name: 运行npm audit
+      run: npm audit --production
+      continue-on-error: true
+    
+    - name: 检查依赖漏洞
+      run: pnpm audit
+      continue-on-error: true

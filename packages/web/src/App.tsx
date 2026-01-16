@@ -6,12 +6,15 @@ import Dashboard from './pages/Dashboard';
 import NotesPage from './pages/NotesPage';
 import ReviewPage from './pages/ReviewPage';
 import SettingsPage from './pages/SettingsPage';
-import { AppRoute, User } from './types';
+import GitHubBoardPage from './pages/GitHubBoardPage';
+import { BootSequence } from './components/BootSequence';
+import { AppRoute, User, UserExtended } from './types';
 import { userAPI } from './api';
+import { DataProvider } from './contexts/DataContext';
 
 const AppLayout: React.FC<{ 
   children: React.ReactNode; 
-  user: User; 
+  user: User | UserExtended; 
   onLogout: () => void;
 }> = ({ children, user, onLogout }) => {
   const navigate = useNavigate();
@@ -23,13 +26,13 @@ const AppLayout: React.FC<{
   };
 
   return (
-    <div className="min-h-screen bg-cyber-black text-gray-200 font-sans selection:bg-cyber-pink selection:text-white bg-grid-pattern">
+    <div className="min-h-screen bg-cyber-black text-gray-200 font-sans selection:bg-cyber-pink selection:text-white bg-grid-pattern overflow-hidden">
       <Sidebar 
-        currentRoute={location.pathname as AppRoute}
+        currentRoute={location.pathname as AppRoute} 
         onNavigate={(route) => navigate(route)} 
         onLogout={handleLogout}
       />
-      <main className="ml-20 lg:ml-64 p-6 lg:p-10 min-h-screen">
+      <main className="ml-20 lg:ml-64 p-4 lg:p-8 h-screen overflow-y-auto scrollbar-hide">
         {children}
       </main>
     </div>
@@ -37,14 +40,15 @@ const AppLayout: React.FC<{
 };
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
+  const [booted, setBooted] = useState(false);
+  const [user, setUser] = useState<User | UserExtended | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // 🔴 临时禁用鉴权 - 使用Mock用户
     const mockUser: User = {
       id: 1,
-      username: 'DemoUser',
+      username: 'NET_RUNNER',
       email: 'demo@webnote.com',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -81,32 +85,30 @@ const App: React.FC = () => {
     */
   }, []);
 
-  const handleLogin = async (email: string, password: string) => {
-    // 登录逻辑在AuthPage中处理
-    // 这里只是回调，实际登录由AuthPage完成
-  };
-
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-cyber-black bg-grid-pattern">
-        <div className="text-cyber-cyan font-mono">系统初始化中...</div>
-      </div>
-    );
-  }
-
   return (
-    <HashRouter>
-      <Routes>
-        <Route path="/login" element={<AuthPageWrapper />} />
-        <Route path="/*" element={<ProtectedRoutes user={user} onLogout={handleLogout} />} />
-      </Routes>
-    </HashRouter>
+    <DataProvider>
+      {!booted && <BootSequence onComplete={() => setBooted(true)} />}
+      <div className={booted ? 'opacity-100 transition-opacity duration-1000' : 'opacity-0'}>
+        {loading ? (
+          <div className="min-h-screen flex items-center justify-center bg-cyber-black bg-grid-pattern">
+            <div className="text-cyber-cyan font-mono">系统初始化中...</div>
+          </div>
+        ) : (
+          <HashRouter>
+            <Routes>
+              <Route path="/login" element={<AuthPageWrapper />} />
+              <Route path="/*" element={<ProtectedRoutes user={user} onLogout={handleLogout} />} />
+            </Routes>
+          </HashRouter>
+        )}
+      </div>
+    </DataProvider>
   );
 };
 
@@ -122,10 +124,10 @@ const AuthPageWrapper = () => {
     }
   };
   
-  return <AuthPage onLogin={handleLoginSuccess} />;
+  return <AuthPage />;
 };
 
-const ProtectedRoutes: React.FC<{ user: User | null; onLogout: () => void }> = ({ user, onLogout }) => {
+const ProtectedRoutes: React.FC<{ user: User | UserExtended | null; onLogout: () => void }> = ({ user, onLogout }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -145,6 +147,7 @@ const ProtectedRoutes: React.FC<{ user: User | null; onLogout: () => void }> = (
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/github" element={<GitHubBoardPage />} />
       </Routes>
     </AppLayout>
   );

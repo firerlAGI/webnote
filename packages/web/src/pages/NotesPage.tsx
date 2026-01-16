@@ -5,7 +5,7 @@ import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Sa
 
 const NotesPage: React.FC = () => {
   const { notes, folders, addNote, updateNote, deleteNote } = useData();
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
   // View States
@@ -47,9 +47,10 @@ const NotesPage: React.FC = () => {
     addNote({
       title: 'UNTITLED_PROTOCOL',
       content: '',
-      folderId: '1',
+      folder_id: 1,
       isPinned: false,
-      tags: ['DRAFT']
+      tags: ['DRAFT'],
+      user_id: 1
     });
   };
 
@@ -154,7 +155,7 @@ const NotesPage: React.FC = () => {
   const charCount = selectedNote?.content.length || 0;
 
   return (
-    <div className="flex h-[calc(100vh-100px)] gap-6 transition-all duration-500">
+    <div className="flex h-full gap-6 transition-all duration-500">
       
       {/* --- LEFT SIDEBAR: DATA MATRIX --- */}
       <div 

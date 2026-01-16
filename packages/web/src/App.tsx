@@ -7,6 +7,7 @@ import NotesPage from './pages/NotesPage';
 import ReviewPage from './pages/ReviewPage';
 import SettingsPage from './pages/SettingsPage';
 import GitHubBoardPage from './pages/GitHubBoardPage';
+import ConnectionTestPage from './pages/ConnectionTestPage';
 import { BootSequence } from './components/BootSequence';
 import { AppRoute, User, UserExtended } from './types';
 import { userAPI } from './api';
@@ -32,7 +33,7 @@ const AppLayout: React.FC<{
         onNavigate={(route) => navigate(route)} 
         onLogout={handleLogout}
       />
-      <main className="ml-20 lg:ml-64 p-4 lg:p-8 h-screen overflow-y-auto scrollbar-hide">
+      <main className="ml-20 lg:ml-64 p-4 lg:p-8 h-screen overflow-y-auto scrollbar-hide overflow-x-hidden">
         {children}
       </main>
     </div>
@@ -148,6 +149,7 @@ const ProtectedRoutes: React.FC<{ user: User | UserExtended | null; onLogout: ()
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/github" element={<GitHubBoardPage />} />
+        <Route path="/test-connection" element={<ConnectionTestPage />} />
       </Routes>
     </AppLayout>
   );

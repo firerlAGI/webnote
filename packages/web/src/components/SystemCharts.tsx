@@ -40,7 +40,7 @@ interface StatRadarProps {
 export const StatRadar: React.FC<StatRadarProps> = ({ data }) => {
   return (
     <div className="w-full h-[300px] relative">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} aspect={undefined}>
         <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data}>
           <PolarGrid stroke="#374151" strokeDasharray="4 4" />
           <PolarAngleAxis 
@@ -113,7 +113,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ data, color = "#ff
          </div>
       </div>
 
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} aspect={undefined}>
         <AreaChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
           <defs>
             {/* We define specific linear gradients here for the stroke fade effect */}

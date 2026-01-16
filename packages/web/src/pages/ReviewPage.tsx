@@ -15,7 +15,7 @@ const ReviewPage: React.FC = () => {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto h-[calc(100vh-100px)] flex flex-col gap-6 animate-in slide-in-from-bottom-5 duration-500">
+    <div className="max-w-6xl mx-auto h-full flex flex-col gap-6 animate-in slide-in-from-bottom-5 duration-500">
       
       {/* Header */}
       <div className="flex items-center justify-between border-b border-gray-800 pb-4 shrink-0">

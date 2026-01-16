@@ -34,11 +34,11 @@ const Dashboard: React.FC = () => {
         // Occasional spike
         if (Math.random() > 0.9) newValue = 95;
         
-        const next = [...prev.slice(1), { time: Date.now(), value: Math.floor(newValue) }];
+        const next = [...prev.slice(1), { time: prev[prev.length - 1].time + 1, value: Math.floor(newValue) }];
         return next;
       });
       setNetData(prev => {
-        const next = [...prev.slice(1), { time: Date.now(), value: Math.floor(Math.random() * 60) + 20 }];
+        const next = [...prev.slice(1), { time: prev[prev.length - 1].time + 1, value: Math.floor(Math.random() * 60) + 20 }];
         return next;
       });
     }, 800);
@@ -65,7 +65,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] relative animate-in fade-in duration-700">
+    <div className="flex flex-col h-full relative animate-in fade-in duration-700">
       
       {/* HUD Corners - With Breathing Effect */}
       <div className="absolute top-0 left-0 w-20 h-20 border-l border-t border-cyber-cyan/30 rounded-tl-xl pointer-events-none animate-pulse-slow"></div>

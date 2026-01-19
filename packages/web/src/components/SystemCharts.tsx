@@ -45,7 +45,7 @@ export const StatRadar: React.FC<StatRadarProps> = ({ data }) => {
           <PolarGrid stroke="#374151" strokeDasharray="4 4" />
           <PolarAngleAxis 
             dataKey="subject" 
-            tick={{ fill: '#00f3ff', fontSize: 12, fontFamily: 'monospace' } as any}
+            tick={{ fill: '#00f3ff', fontSize: 12, fontFamily: 'JetBrains Mono, monospace' } as any}
           />
           <PolarRadiusAxis angle={30} domain={[0, 10]} tick={false} axisLine={false} />
           <Radar

@@ -27,18 +27,18 @@ import { SyncStatusDetail,
   GetDataDiffRequest,
   PollingResponse,
   PollingPriority
-} from './types'
-import { SyncStateManager } from './SyncStateManager'
+} from './types.js'
+import { SyncStateManager } from './SyncStateManager.js'
 import { WebSocket } from '@fastify/websocket'
-import { ConflictService } from './ConflictService'
-import { QueueService } from './QueueService'
+import { ConflictService } from './ConflictService.js'
+import { QueueService } from './QueueService.js'
 import crypto from 'crypto'
 import { Logger } from 'pino'
 import {
   FallbackManager,
   ConnectionHealthConfig,
   HTTPPollingConfig
-} from './fallback'
+} from './fallback.js'
 
 // ============================================================================
 // 补充类型定义

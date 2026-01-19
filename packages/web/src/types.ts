@@ -39,5 +39,6 @@ export enum AppRoute {
   DASHBOARD = '/',
   NOTES = '/notes',
   REVIEW = '/review',
+  REVIEW_HISTORY = '/review/history',
   SETTINGS = '/settings',
 }

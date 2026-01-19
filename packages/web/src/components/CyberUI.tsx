@@ -177,7 +177,7 @@ export const CyberTextArea = forwardRef<HTMLTextAreaElement, CyberTextAreaProps>
           <div className="absolute inset-0 bg-cyber-grid bg-[length:30px_30px] opacity-0 group-focus-within:opacity-10 transition-opacity pointer-events-none"></div>
           <textarea
             ref={ref}
-            className={`w-full h-full bg-black/20 border border-transparent focus:border-cyber-cyan/30 text-gray-300 p-4 font-mono text-sm outline-none resize-none transition-all placeholder-gray-700 focus:bg-black/40 focus:shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] selection:bg-cyber-pink selection:text-white ${className}`}
+            className={`w-full h-full bg-black/20 border border-transparent focus:border-cyber-cyan/30 text-gray-300 p-4 text-sm outline-none resize-none transition-all placeholder-gray-700 focus:bg-black/40 focus:shadow-[inset_0_0_20px_rgba(0,0,0,0.8)] selection:bg-cyber-pink selection:text-white ${className}`}
             {...props}
           />
           {/* Corner Accents */}

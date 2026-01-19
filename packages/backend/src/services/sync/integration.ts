@@ -4,10 +4,10 @@
  */
 
 import { FastifyInstance } from 'fastify'
-import { SyncService } from './SyncService'
-import { QueueService } from './QueueService'
-import { ConflictService } from './ConflictService'
-import { registerSyncRoutes } from './routes'
+import { SyncService } from './SyncService.js'
+import { QueueService } from './QueueService.js'
+import { ConflictService } from './ConflictService.js'
+import { registerSyncRoutes } from './routes.js'
 
 /**
  * 初始化同步服务

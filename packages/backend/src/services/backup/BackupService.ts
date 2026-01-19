@@ -3,12 +3,12 @@
  * 处理用户数据的备份和恢复操作，集成阿里云OSS存储
  */
 
-import { prisma } from '../../server';
+import { PrismaClient } from '@prisma/client';
 import { existsSync, mkdirSync, unlinkSync, statSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
-import { ossConfig, type BackupType, type RetentionType } from '../../config/oss';
+import ossConfig, { type BackupType, type RetentionType } from '../../config/oss.js';
 import OSS from 'ali-oss';
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
 
@@ -102,6 +102,8 @@ export interface RestoreOptions {
 // ============================================================================
 // 备份服务类
 // ============================================================================
+
+const prisma = new PrismaClient();
 
 class BackupService {
   private backupsDir: string;

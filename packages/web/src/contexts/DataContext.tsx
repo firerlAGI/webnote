@@ -10,6 +10,7 @@ interface DataContextType {
   updateNote: (id: number, updates: Partial<NoteExtended>) => void;
   deleteNote: (id: number) => void;
   addReview: (review: Omit<DailyReview, 'id'>) => void;
+  updateFolder: (id: number, name: string) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -26,8 +27,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saved ? JSON.parse(saved) : MOCK_REVIEWS;
   });
 
-  // Folders are static for now, but could be dynamic later
-  const folders = MOCK_FOLDERS;
+  const [folders, setFolders] = useState<MockFolder[]>(() => {
+    const saved = localStorage.getItem('wn_folders');
+    return saved ? JSON.parse(saved) : MOCK_FOLDERS;
+  });
 
   // Persistence Effects
   useEffect(() => {
@@ -37,6 +40,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     localStorage.setItem('wn_reviews', JSON.stringify(reviews));
   }, [reviews]);
+
+  useEffect(() => {
+    localStorage.setItem('wn_folders', JSON.stringify(folders));
+  }, [folders]);
 
   // Actions
   const addNote = (noteData: Omit<NoteExtended, 'id' | 'updatedAt'>) => {
@@ -66,8 +73,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setReviews(prev => [newReview, ...prev]);
   };
 
+  const updateFolder = (id: number, name: string) => {
+    setFolders(prev => prev.map(f => 
+      f.id === id ? { ...f, name } : f
+    ));
+  };
+
   return (
-    <DataContext.Provider value={{ notes, reviews, folders, addNote, updateNote, deleteNote, addReview }}>
+    <DataContext.Provider value={{ notes, reviews, folders, addNote, updateNote, deleteNote, addReview, updateFolder }}>
       {children}
     </DataContext.Provider>
   );

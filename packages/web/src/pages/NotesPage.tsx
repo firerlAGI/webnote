@@ -4,9 +4,11 @@ import { CyberCard, CyberButton, CyberTextArea, CyberTag, CyberScrambleText } fr
 import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Save, Cloud, Hash, ChevronRight, FileCode, Code } from 'lucide-react';
 
 const NotesPage: React.FC = () => {
-  const { notes, folders, addNote, updateNote, deleteNote } = useData();
+  const { notes, folders, addNote, updateNote, deleteNote, updateFolder } = useData();
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
+  const [editingFolderId, setEditingFolderId] = useState<number | null>(null);
+  const [editingFolderName, setEditingFolderName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
   // View States
@@ -42,6 +44,21 @@ const NotesPage: React.FC = () => {
     saveTimeoutRef.current = setTimeout(() => {
       setSaveStatus('synced');
     }, 800);
+  };
+
+  const handleStartEditFolder = (e: React.MouseEvent, folder: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingFolderId(folder.id);
+    setEditingFolderName(folder.name);
+  };
+
+  const handleSaveEditFolder = () => {
+    if (editingFolderId !== null && editingFolderName.trim()) {
+      updateFolder(editingFolderId, editingFolderName.trim());
+    }
+    setEditingFolderId(null);
+    setEditingFolderName('');
   };
 
   const handleCreateNew = () => {
@@ -112,7 +129,7 @@ const NotesPage: React.FC = () => {
         }
 
         return (
-          <div key={index} className="my-6 relative group rounded overflow-hidden border border-gray-800 bg-[#0c0c0c]">
+          <div key={index} className="my-6 relative group rounded overflow-hidden border border-gray-800 bg-[#0c0c0c] max-w-full">
              {/* Code Header */}
              <div className="flex items-center justify-between px-4 py-1.5 bg-white/5 border-b border-gray-800">
                 <div className="flex gap-1.5">
@@ -124,10 +141,10 @@ const NotesPage: React.FC = () => {
              </div>
              
              {/* Code Body */}
-             <div className="p-4 overflow-x-auto relative">
+             <div className="p-4 overflow-x-auto relative min-w-0">
                 {/* Decorative Line Number Strip (Fake) */}
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyber-pink/50"></div>
-                <pre className="font-mono text-xs md:text-sm text-gray-300 leading-relaxed tab-4">
+                <pre className="font-mono text-xs md:text-sm text-gray-300 leading-relaxed tab-4 min-w-max">
                   <code>{code}</code>
                 </pre>
              </div>
@@ -157,12 +174,12 @@ const NotesPage: React.FC = () => {
   const charCount = selectedNote?.content.length || 0;
 
   return (
-    <div className="flex h-full gap-6 transition-all duration-500">
+    <div className="flex flex-col md:flex-row lg:grid lg:grid-cols-[300px_1fr] h-full gap-4 md:gap-6 transition-all duration-500">
       
       {/* --- LEFT SIDEBAR: DATA MATRIX --- */}
       <div 
-        className={`flex flex-col gap-4 transition-all duration-500 ease-in-out ${
-          isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-1/3 lg:w-1/4 opacity-100'
+        className={`flex flex-col gap-4 transition-all duration-500 ease-in-out min-w-0 ${
+          isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-[300px] lg:w-[300px] xl:w-1/4 opacity-100'
         }`}
       >
         {/* Search Matrix */}
@@ -195,9 +212,25 @@ const NotesPage: React.FC = () => {
             ALL_SECTORS
           </button>
           {folders.map(f => (
+            editingFolderId === f.id ? (
+              <input
+                key={f.id}
+                autoFocus
+                value={editingFolderName}
+                onChange={(e) => setEditingFolderName(e.target.value)}
+                onBlur={handleSaveEditFolder}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEditFolder();
+                  if (e.key === 'Escape') setEditingFolderId(null);
+                }}
+                className="px-3 py-1.5 border border-cyber-cyan bg-black/40 text-white rounded-sm text-[10px] font-mono outline-none min-w-[100px]"
+              />
+            ) : (
             <button
               key={f.id}
               onClick={() => setSelectedFolderId(prev => prev === f.id ? null : f.id)}
+              onDoubleClick={(e) => handleStartEditFolder(e, f)}
+              title="Double click to rename"
               className={`flex items-center gap-2 px-3 py-1.5 border rounded-sm text-[10px] font-mono transition-all whitespace-nowrap group ${
                 selectedFolderId === f.id
                   ? 'border-cyber-cyan bg-cyber-cyan/10 text-white'
@@ -207,6 +240,7 @@ const NotesPage: React.FC = () => {
               <Folder size={10} className={`${selectedFolderId === f.id ? 'text-cyber-cyan' : 'text-gray-600 group-hover:text-cyber-yellow'} transition-colors`} />
               {f.name}
             </button>
+            )
           ))}
         </div>
 
@@ -267,7 +301,7 @@ const NotesPage: React.FC = () => {
       </div>
 
       {/* --- RIGHT EDITOR: TACTICAL TERMINAL --- */}
-      <div className={`flex-1 flex flex-col h-full relative transition-all duration-500 ${isFocusMode ? 'max-w-4xl mx-auto' : ''}`}>
+      <div className={`flex-1 flex flex-col h-full relative transition-all duration-500 min-w-0 ${isFocusMode ? 'max-w-4xl mx-auto' : ''}`}>
         
         {selectedNote ? (
           <CyberCard className="h-full flex flex-col overflow-hidden shadow-2xl" noPadding variant="default">
@@ -362,7 +396,7 @@ const NotesPage: React.FC = () => {
             </div>
 
             {/* 3. Main Editor / Preview Area */}
-            <div className="flex-1 relative overflow-hidden group">
+            <div className="flex-1 relative overflow-hidden group min-w-0">
                <div className="absolute inset-0 bg-cyber-grid bg-[length:40px_40px] opacity-5 pointer-events-none"></div>
                
                {viewMode === 'write' ? (
@@ -371,13 +405,13 @@ const NotesPage: React.FC = () => {
                     value={selectedNote.content}
                     onChange={(e) => handleContentChange('content', e.target.value)}
                     placeholder="// START_DATA_ENTRY..."
-                    className="leading-relaxed font-mono text-gray-300 text-sm md:text-base p-6 md:p-8"
+                    className="leading-relaxed text-gray-300 text-xs sm:text-sm md:text-base p-4 sm:p-6 md:p-8"
                     spellCheck={false}
                   />
                ) : (
-                  <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-6 md:p-8">
+                  <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-4 sm:p-6 md:p-8 min-w-0">
                      <div className="prose prose-invert prose-p:font-sans prose-headings:font-display prose-headings:text-cyber-cyan prose-code:text-cyber-pink prose-code:font-mono max-w-none">
-                        <div className="whitespace-pre-wrap">
+                        <div className="whitespace-pre-wrap break-words min-w-0">
                           {selectedNote.content ? renderMarkdown(selectedNote.content) : <span className="text-gray-600 italic">// EMPTY_BUFFER</span>}
                         </div>
                      </div>

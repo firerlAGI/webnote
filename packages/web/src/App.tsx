@@ -33,7 +33,7 @@ const AppLayout: React.FC<{
         onNavigate={(route) => navigate(route)} 
         onLogout={handleLogout}
       />
-      <main className="ml-20 lg:ml-64 p-4 lg:p-8 h-screen overflow-y-auto scrollbar-hide overflow-x-hidden">
+      <main className="ml-14 sm:ml-16 md:ml-20 lg:ml-64 p-3 sm:p-4 lg:p-8 h-screen overflow-y-auto scrollbar-hide overflow-x-hidden">
         {children}
       </main>
     </div>

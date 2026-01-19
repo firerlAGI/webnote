@@ -5,10 +5,9 @@
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { WebSocket } from '@fastify/websocket'
-import { SyncService } from './SyncService'
-import { ConflictService } from './ConflictService'
-import { QueueService } from './QueueService'
-import { prisma } from '../../server'
+import { SyncService } from './SyncService.js'
+import { ConflictService } from './ConflictService.js'
+import { QueueService } from './QueueService.js'
 import {
   SyncRequest,
   SyncStatus,
@@ -66,7 +65,7 @@ import {
   ResolveConflictApiResponse,
   BatchResolveConflictApiRequest,
   BatchResolveConflictApiResponse
-} from './types'
+} from './types.js'
 
 // ============================================================================
 // 中间件

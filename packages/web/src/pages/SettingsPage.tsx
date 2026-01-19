@@ -7,31 +7,31 @@ const SettingsPage: React.FC = () => {
   const [syncEnabled, setSyncEnabled] = useState(true);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in slide-in-from-bottom-5 duration-500 pb-10">
-      <div className="flex items-center justify-between border-b border-gray-800 pb-4">
+    <div className="max-w-5xl mx-auto space-y-6 sm:space-y-8 animate-in slide-in-from-bottom-5 duration-500 pb-8 sm:pb-10">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-800 pb-4">
         <div>
-           <h1 className="text-3xl font-display font-bold text-white mb-1">系统配置_Config</h1>
-           <p className="text-cyber-cyan font-mono text-sm">终端参数 // 偏好设置 // 安全协议</p>
+           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white mb-1">系统配置_Config</h1>
+           <p className="text-cyber-cyan font-mono text-xs sm:text-sm">终端参数 // 偏好设置 // 安全协议</p>
         </div>
         <CyberButton glow onClick={() => alert("配置已覆写至神经芯片")}>
           <Save size={16} /> 保存配置
         </CyberButton>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] lg:grid-cols-3 gap-4 md:gap-6">
         
         {/* Left Column: User & Security */}
-        <div className="space-y-6">
+        <div className="md:w-[280px] lg:w-auto space-y-4 md:space-y-6">
            <CyberCard title="用户识别码_Identity">
-              <div className="flex flex-col items-center py-4">
-                 <div className="w-24 h-24 rounded-full border-2 border-cyber-cyan bg-cyber-cyan/10 flex items-center justify-center mb-4 relative group cursor-pointer overflow-hidden">
+              <div className="flex flex-col items-center py-3 sm:py-4">
+                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-2 border-cyber-cyan bg-cyber-cyan/10 flex items-center justify-center mb-3 sm:mb-4 relative group cursor-pointer overflow-hidden">
                     <User size={40} className="text-cyber-cyan" />
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                        <span className="text-[10px] font-mono text-white">UPLOAD</span>
                     </div>
                  </div>
-                 <h2 className="text-xl font-display text-white">NetRunner_01</h2>
-                 <p className="text-xs font-mono text-gray-500 mb-4">ID: USR-9920-X</p>
+                 <h2 className="text-lg sm:text-xl font-display text-white">NetRunner_01</h2>
+                 <p className="text-[10px] sm:text-xs font-mono text-gray-500 mb-3 sm:mb-4">ID: USR-9920-X</p>
                  <CyberBadge color="pink">管理员权限</CyberBadge>
               </div>
               <div className="space-y-4 mt-4">

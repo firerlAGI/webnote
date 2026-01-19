@@ -3,7 +3,7 @@
  * 负责调度自动备份和清理任务
  */
 
-import { backupService } from './BackupService'
+import { backupService } from './BackupService.js'
 import type { BackupType } from '../../config/oss'
 
 // ============================================================================

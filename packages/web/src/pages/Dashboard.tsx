@@ -55,9 +55,10 @@ const Dashboard: React.FC = () => {
     e.preventDefault();
     if (!inputText.trim()) return;
     addNote({
+      user_id: 1, // 模拟当前登录用户ID
       title: `速记_${new Date().toLocaleTimeString()}`,
       content: inputText,
-      folderId: '1',
+      folderId: 1,
       isPinned: false,
       tags: ['Dashboard', 'Quick']
     });
@@ -67,56 +68,58 @@ const Dashboard: React.FC = () => {
   return (
     <div className="flex flex-col h-full relative animate-in fade-in duration-700">
       
-      {/* HUD Corners - With Breathing Effect */}
-      <div className="absolute top-0 left-0 w-20 h-20 border-l border-t border-cyber-cyan/30 rounded-tl-xl pointer-events-none animate-pulse-slow"></div>
-      <div className="absolute top-0 right-0 w-20 h-20 border-r border-t border-cyber-cyan/30 rounded-tr-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
-      <div className="absolute bottom-0 left-0 w-20 h-20 border-l border-b border-cyber-cyan/30 rounded-bl-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
-      <div className="absolute bottom-0 right-0 w-20 h-20 border-r border-b border-cyber-cyan/30 rounded-br-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '3s' }}></div>
+      {/* HUD Corners - With Breathing Effect (Responsive) */}
+      <div className="absolute top-0 left-0 w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 border-l border-t border-cyber-cyan/30 rounded-tl-xl pointer-events-none animate-pulse-slow"></div>
+      <div className="absolute top-0 right-0 w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 border-r border-t border-cyber-cyan/30 rounded-tr-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '1s' }}></div>
+      <div className="absolute bottom-0 left-0 w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 border-l border-b border-cyber-cyan/30 rounded-bl-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '2s' }}></div>
+      <div className="absolute bottom-0 right-0 w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 border-r border-b border-cyber-cyan/30 rounded-br-xl pointer-events-none animate-pulse-slow" style={{ animationDelay: '3s' }}></div>
 
       {/* Subtle Background Breathing Gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-cyber-cyan/5 via-transparent to-cyber-pink/5 pointer-events-none animate-pulse-slow opacity-50"></div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full p-2 relative z-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4 md:gap-6 h-full p-2 relative z-10">
         
-        {/* Left Column: Live Monitors */}
-        <div className="hidden lg:flex lg:col-span-3 flex-col gap-6 justify-center">
-           {/* CPU Widget */}
-           <CyberCard title="CPU_CORE_01" noPadding className="bg-black/60 border-cyber-pink/30 hover:border-cyber-pink/80 transition-all shadow-[0_0_20px_rgba(255,0,85,0.1)] group overflow-visible">
-              <div className="absolute -left-1 top-1/2 w-1 h-10 bg-cyber-pink/50 rounded-r opacity-50 group-hover:h-20 transition-all duration-500"></div>
-              <div className="p-4 pb-0 flex justify-between items-end border-b border-gray-800/50 mb-2">
-                 <div className="flex items-center gap-2 mb-2 text-cyber-pink">
+        {/* Left Column: Live Monitors (Show horizontal on md, vertical on lg) */}
+        <div className="hidden md:flex md:col-span-2 lg:col-span-3 flex-col gap-4 md:gap-6 justify-center">
+           <div className="flex lg:flex-col gap-4 w-full">
+              {/* CPU Widget */}
+              <CyberCard title="CPU_CORE_01" noPadding className="flex-1 bg-black/60 border-cyber-pink/30 hover:border-cyber-pink/80 transition-all shadow-[0_0_20px_rgba(255,0,85,0.1)] group overflow-visible">
+                <div className="absolute -left-1 top-1/2 w-1 h-10 bg-cyber-pink/50 rounded-r opacity-50 group-hover:h-20 transition-all duration-500"></div>
+                <div className="p-4 pb-0 flex justify-between items-end border-b border-gray-800/50 mb-2">
+                  <div className="flex items-center gap-2 mb-2 text-cyber-pink">
                     <Cpu size={18} className="animate-pulse" />
                     <span className="text-xs font-mono font-bold">KERNEL_PANIC</span>
-                 </div>
-                 <div className="text-[10px] font-mono text-gray-500 mb-2">PID: 8821</div>
-              </div>
-              <ActivityChart data={cpuData} color="#ff0055" />
-           </CyberCard>
-           
-           {/* Network Widget */}
-           <CyberCard title="NET_UPLINK" noPadding className="bg-black/60 border-cyber-cyan/30 hover:border-cyber-cyan/80 transition-all shadow-[0_0_20px_rgba(0,243,255,0.1)] group overflow-visible">
-              <div className="absolute -left-1 top-1/2 w-1 h-10 bg-cyber-cyan/50 rounded-r opacity-50 group-hover:h-20 transition-all duration-500"></div>
-              <div className="p-4 pb-0 flex justify-between items-end border-b border-gray-800/50 mb-2">
-                 <div className="flex items-center gap-2 mb-2 text-cyber-cyan">
+                  </div>
+                  <div className="text-[10px] font-mono text-gray-500 mb-2">PID: 8821</div>
+                </div>
+                <ActivityChart data={cpuData} color="#ff0055" />
+              </CyberCard>
+              
+              {/* Network Widget */}
+              <CyberCard title="NET_UPLINK" noPadding className="flex-1 bg-black/60 border-cyber-cyan/30 hover:border-cyber-cyan/80 transition-all shadow-[0_0_20px_rgba(0,243,255,0.1)] group overflow-visible">
+                <div className="absolute -left-1 top-1/2 w-1 h-10 bg-cyber-cyan/50 rounded-r opacity-50 group-hover:h-20 transition-all duration-500"></div>
+                <div className="p-4 pb-0 flex justify-between items-end border-b border-gray-800/50 mb-2">
+                  <div className="flex items-center gap-2 mb-2 text-cyber-cyan">
                     <Wifi size={18} />
                     <span className="text-xs font-mono font-bold">ETH_0 CONNECTED</span>
-                 </div>
-                 <div className="text-[10px] font-mono text-gray-500 mb-2">TX/RX: 10GB</div>
-              </div>
-              <ActivityChart data={netData} color="#00f3ff" />
-           </CyberCard>
+                  </div>
+                  <div className="text-[10px] font-mono text-gray-500 mb-2">TX/RX: 10GB</div>
+                </div>
+                <ActivityChart data={netData} color="#00f3ff" />
+              </CyberCard>
+           </div>
         </div>
 
         {/* Center Column: Input Terminal (The Core) */}
-        <div className="lg:col-span-6 flex flex-col items-center justify-center z-10">
+        <div className="col-span-1 md:col-span-2 lg:col-span-6 flex flex-col items-center justify-center z-10">
           
           {/* Welcome Text with Float Animation */}
-          <div className="text-center mb-10 space-y-2 animate-float">
+          <div className="text-center mb-6 md:mb-10 space-y-2 animate-float">
             <div className="inline-flex items-center justify-center p-3 mb-4 rounded-full bg-cyber-cyan/5 border border-cyber-cyan/20 shadow-[0_0_20px_rgba(0,243,255,0.15)] animate-pulse-fast">
-              <Sparkles className="text-cyber-cyan" size={28} />
+              <Sparkles className="text-cyber-cyan w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8" />
             </div>
-            <h1 className="text-4xl md:text-5xl font-display font-black text-white tracking-wider drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-display font-black text-white tracking-wider drop-shadow-[0_0_10px_rgba(255,255,255,0.3)]">
               <CyberScrambleText text="NEURAL_LINK" />
             </h1>
             <p className="text-cyber-cyan/60 font-mono text-xs tracking-[0.3em]">SYSTEM ONLINE // READY</p>
@@ -173,16 +176,16 @@ const Dashboard: React.FC = () => {
           </div>
 
           {/* Quick Actions */}
-          <div className="flex gap-4 mt-8 animate-float" style={{ animationDelay: '1.5s' }}>
-             <button onClick={() => handleQuickAction('note')} className="flex items-center gap-2 px-4 py-2 border border-gray-800 rounded bg-cyber-panel/50 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 transition-all group backdrop-blur-sm">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mt-6 sm:mt-8 animate-float" style={{ animationDelay: '1.5s' }}>
+             <button onClick={() => handleQuickAction('note')} className="flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] border border-gray-800 rounded bg-cyber-panel/50 hover:border-cyber-cyan/50 hover:bg-cyber-cyan/5 transition-all group backdrop-blur-sm">
                 <FileText size={16} className="text-gray-500 group-hover:text-cyber-cyan transition-colors" />
                 <span className="text-xs font-mono text-gray-400 group-hover:text-white">NEW_NOTE</span>
              </button>
-             <button onClick={() => handleQuickAction('review')} className="flex items-center gap-2 px-4 py-2 border border-gray-800 rounded bg-cyber-panel/50 hover:border-cyber-pink/50 hover:bg-cyber-pink/5 transition-all group backdrop-blur-sm">
+             <button onClick={() => handleQuickAction('review')} className="flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] border border-gray-800 rounded bg-cyber-panel/50 hover:border-cyber-pink/50 hover:bg-cyber-pink/5 transition-all group backdrop-blur-sm">
                 <Zap size={16} className="text-gray-500 group-hover:text-cyber-pink transition-colors" />
                 <span className="text-xs font-mono text-gray-400 group-hover:text-white">DAILY_LOG</span>
              </button>
-             <button onClick={() => navigate('/github')} className="flex items-center gap-2 px-4 py-2 border border-gray-800 rounded bg-cyber-panel/50 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group backdrop-blur-sm">
+             <button onClick={() => navigate('/github')} className="flex items-center justify-center gap-2 px-4 py-3 min-h-[44px] border border-gray-800 rounded bg-cyber-panel/50 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group backdrop-blur-sm">
                 <Github size={16} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
                 <span className="text-xs font-mono text-gray-400 group-hover:text-white">PROJECT_BOARD</span>
              </button>

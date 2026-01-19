@@ -6,65 +6,9 @@
     <title>WebNote 2077 | 赛博笔记</title>
     <!-- Cyberpunk Hexagon Favicon -->
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50 5, 95 27.5, 95 72.5, 50 95, 5 72.5, 5 27.5' fill='%23050505' stroke='%2300f3ff' stroke-width='5' /%3E%3Ctext x='50' y='68' font-family='monospace' font-weight='bold' font-size='45' text-anchor='middle' fill='%2300f3ff'%3EWN%3C/text%3E%3C/svg%3E" type="image/svg+xml" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              cyber: {
-                black: '#020203', /* Even darker black */
-                dark: '#0a0a0f',
-                panel: '#12121a',
-                cyan: '#00f3ff',
-                pink: '#ff0055',
-                yellow: '#fcee0a',
-                dim: 'rgba(0, 243, 255, 0.1)',
-                grid: 'rgba(0, 243, 255, 0.03)',
-              }
-            },
-            fontFamily: {
-              sans: ['Rajdhani', 'sans-serif'],
-              mono: ['"Share Tech Mono"', 'monospace'],
-              display: ['Orbitron', 'sans-serif'],
-            },
-            backgroundImage: {
-              'grid-pattern': "linear-gradient(to right, #1f29371a 1px, transparent 1px), linear-gradient(to bottom, #1f29371a 1px, transparent 1px)",
-              'cyber-grid': "linear-gradient(0deg, transparent 24%, rgba(0, 243, 255, .03) 25%, rgba(0, 243, 255, .03) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .03) 75%, rgba(0, 243, 255, .03) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(0, 243, 255, .03) 25%, rgba(0, 243, 255, .03) 26%, transparent 27%, transparent 74%, rgba(0, 243, 255, .03) 75%, rgba(0, 243, 255, .03) 76%, transparent 77%, transparent)",
-            },
-            animation: {
-              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'glitch': 'glitch 1s linear infinite',
-              'scan': 'scan 4s linear infinite',
-              'flicker': 'flicker 0.15s infinite',
-              'float': 'float 6s ease-in-out infinite',
-            },
-            boxShadow: {
-              'neon-cyan': '0 0 5px #00f3ff, 0 0 20px rgba(0, 243, 255, 0.3)',
-              'neon-pink': '0 0 5px #ff0055, 0 0 20px rgba(255, 0, 85, 0.3)',
-              'neon-yellow': '0 0 5px #fcee0a, 0 0 20px rgba(252, 238, 10, 0.3)',
-            },
-            keyframes: {
-              scan: {
-                '0%': { transform: 'translateY(-100%)' },
-                '100%': { transform: 'translateY(100%)' },
-              },
-              flicker: {
-                '0%': { opacity: '0.9' },
-                '50%': { opacity: '1.0' },
-                '100%': { opacity: '0.9' },
-              },
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              }
-            }
-          },
-        },
-      }
-    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,700;1,400&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
       body {
         background-color: #020203;

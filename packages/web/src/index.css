@@ -1,8 +1,28 @@
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --font-sans: 'DM Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Noto Sans SC', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', monospace;
+  --font-display: 'Space Grotesk', 'DM Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
 
 * {
   margin: 0;
@@ -11,13 +31,25 @@
 }
 
 body {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-color: #020203;
+  color: #e2e8f0;
 }
 
 .bg-grid-pattern {
   background-size: 50px 50px;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
 }
 
 /* Glitch effect for text */
@@ -46,21 +78,132 @@ body {
   animation: glitch 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Advanced clips */
+.clip-corner-rb {
+  clip-path: polygon(0 0, 100% 0, 100% 70%, 90% 100%, 0 100%);
 }
 
-::-webkit-scrollbar-track {
-  background: #0a0a0f;
+.clip-corner-both {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
 
-::-webkit-scrollbar-thumb {
-  background: #1a1a2e;
-  border-radius: 4px;
+.clip-diagonal {
+  clip-path: polygon(0 0, 100% 0, 95% 100%, 0% 100%);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #00f5ff;
+.clip-path-polygon {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 30% 100%, 0 70%);
+}
+
+/* CRT scanline overlay */
+.scanlines {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.3)
+  );
+  background-size: 100% 4px;
+  position: fixed;
+  pointer-events: none;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9999;
+  opacity: 0.15;
+}
+
+/* Holographic grid background helper */
+.holo-grid {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(0, 243, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 243, 255, 0.05) 1px, transparent 1px);
+  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+/* Custom scrollbar - Desktop */
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1a1a2e;
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #00f5ff;
+  }
+}
+
+/* Custom scrollbar - Mobile/Tablet */
+@media (max-width: 1023px) {
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0a0a0f;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #1a1a2e;
+    border-radius: 2px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #00f5ff;
+  }
+}
+
+/* Touch-friendly tap highlight */
+@media (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  a,
+  input,
+  textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Improve touch targets on small screens */
+  @media (max-width: 640px) {
+    button,
+    a {
+      min-height: 44px;
+      padding: 12px 16px;
+    }
+  }
+}
+
+/* Prevent text selection on touch devices during swipe */
+@media (pointer: coarse) {
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Smooth scrolling for better mobile experience */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Prevent horizontal scroll overflow */
+body {
+  overflow-x: hidden;
 }

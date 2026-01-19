@@ -4,8 +4,8 @@
  */
 
 import { FastifyInstance } from 'fastify'
-import { backupService } from './BackupService'
-import { getScheduler, BackupScheduler } from './Scheduler'
+import { backupService } from './BackupService.js'
+import { getScheduler, BackupScheduler } from './Scheduler.js'
 
 /**
  * 初始化备份服务

@@ -6,13 +6,20 @@ import websocket from '@fastify/websocket'
 import multipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
 import { PrismaClient } from '@prisma/client'
-import { routes } from './api/routes'
-import { initializeSyncService, shutdownSyncService } from './services/sync/integration'
-import { initializeBackupService, shutdownBackupService } from './services/backup/integration'
+import { routes } from './api/routes.js'
+import { initializeSyncService, shutdownSyncService } from './services/sync/integration.js'
+import { initializeBackupService, shutdownBackupService } from './services/backup/integration.js'
+import { databaseMonitor, createPrismaMiddleware } from './utils/databaseMonitor.js'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  log: ['query', 'error', 'warn'],
+  errorFormat: 'pretty'
+})
+
+// 添加 Prisma 中间件用于性能监控
+prisma.$use(createPrismaMiddleware())
 const app = Fastify({
   logger: true
 })
@@ -98,6 +105,27 @@ app.get('/health', async () => {
   return { status: 'ok' }
 })
 
+// Database performance stats (admin only)
+app.get('/admin/database/stats', async (request, reply) => {
+  // TODO: 添加管理员认证
+  const stats = databaseMonitor.getDatabaseStats()
+  return stats
+})
+
+// Database performance report (admin only)
+app.get('/admin/database/report', async (request, reply) => {
+  // TODO: 添加管理员认证
+  databaseMonitor.printPerformanceReport()
+  return { success: true, message: 'Performance report printed to console' }
+})
+
+// Clear database logs (admin only)
+app.delete('/admin/database/logs', async (request, reply) => {
+  // TODO: 添加管理员认证
+  databaseMonitor.clearLogs()
+  return { success: true, message: 'Database logs cleared' }
+})
+
 // Error handling
 app.setErrorHandler((error, _, reply) => {
   reply.status(error.statusCode || 500).send({
@@ -138,12 +166,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 
 // Start server
 const PORT = process.env.PORT || 3000
-app.listen({ port: Number(PORT) }, (err) => {
+const HOST = process.env.HOST || '0.0.0.0'
+app.listen({ port: Number(PORT), host: HOST }, (err) => {
   if (err) {
     app.log.error(err)
     process.exit(1)
   }
-  app.log.info(`Server listening on port ${PORT}`)
+  app.log.info(`Server listening on http://${HOST}:${PORT}`)
 })
 
 export { app, prisma, syncService, queueService, conflictService, backupService, scheduler }

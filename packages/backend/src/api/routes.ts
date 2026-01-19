@@ -1,10 +1,11 @@
 import { FastifyInstance, FastifyRequest } from 'fastify'
 import bcrypt from 'bcrypt'
-import { prisma } from '../server'
+import { prisma } from '../server.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { backupService, BackupInfo, RestoreOptions } from '../services/backup/BackupService'
+import { backupService, BackupInfo, RestoreOptions } from '../services/backup/BackupService.js'
+import { normalizeReview } from './reviewTransform.js'
 
 // User type for JWT payload
 interface UserPayload {
@@ -485,8 +486,23 @@ export async function routes(app: FastifyInstance) {
       const [notes, total] = await Promise.all([
         prisma.note.findMany({
           where,
-          include: {
-            folder: true
+          select: {
+            id: true,
+            user_id: true,
+            title: true,
+            content: true,
+            folder_id: true,
+            is_pinned: true,
+            last_accessed_at: true,
+            content_hash: true,
+            created_at: true,
+            updated_at: true,
+            folder: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
           },
           orderBy: {
             [sort_by]: sort_order
@@ -526,8 +542,23 @@ export async function routes(app: FastifyInstance) {
       // Get note
       const note = await prisma.note.findUnique({
         where: { id: parseInt(id) },
-        include: {
-          folder: true
+        select: {
+          id: true,
+          user_id: true,
+          title: true,
+          content: true,
+          folder_id: true,
+          is_pinned: true,
+          last_accessed_at: true,
+          content_hash: true,
+          created_at: true,
+          updated_at: true,
+          folder: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
         }
       })
       
@@ -592,8 +623,23 @@ export async function routes(app: FastifyInstance) {
           ...(folder_id !== undefined && { folder_id }),
           ...(is_pinned !== undefined && { is_pinned })
         },
-        include: {
-          folder: true
+        select: {
+          id: true,
+          user_id: true,
+          title: true,
+          content: true,
+          folder_id: true,
+          is_pinned: true,
+          last_accessed_at: true,
+          content_hash: true,
+          created_at: true,
+          updated_at: true,
+          folder: {
+            select: {
+              id: true,
+              name: true
+            }
+          }
         }
       })
       
@@ -747,12 +793,17 @@ export async function routes(app: FastifyInstance) {
 
   app.get('/folders', { preHandler: authenticate }, async (request, reply) => {
     try {
-      // Get all folders for user
+      // Get all folders for user with note count
       const folders = await prisma.folder.findMany({
         where: { user_id: (request.user as UserPayload).id },
-        include: {
-          notes: {
-            select: { id: true }
+        select: {
+          id: true,
+          user_id: true,
+          name: true,
+          created_at: true,
+          updated_at: true,
+          _count: {
+            select: { notes: true }
           }
         },
         orderBy: {
@@ -760,10 +811,11 @@ export async function routes(app: FastifyInstance) {
         }
       })
       
-      // Calculate note count for each folder
+      // Format note count
       const foldersWithNoteCount = folders.map((folder: any) => ({
         ...folder,
-        note_count: folder.notes.length
+        note_count: folder._count.notes,
+        _count: undefined
       }))
       
       return reply.status(200).send({
@@ -1095,7 +1147,7 @@ export async function routes(app: FastifyInstance) {
       
       return reply.status(201).send({
         success: true,
-        data: review,
+        data: normalizeReview(review),
         message: 'Review created successfully'
       })
     } catch (error) {
@@ -1120,11 +1172,32 @@ export async function routes(app: FastifyInstance) {
     }
     
     try {
-      const where = {
-        user_id: (request.user as UserPayload).id,
-        ...(start_date && { date: { gte: new Date(start_date) } }),
-        ...(end_date && { date: { lte: new Date(end_date) } }),
-        ...(mood && { mood: parseInt(mood) })
+      const where: any = {
+        user_id: (request.user as UserPayload).id
+      }
+
+      if (start_date || end_date) {
+        const dateFilter: any = {}
+        if (start_date) dateFilter.gte = new Date(start_date)
+        if (end_date) {
+          const endExclusive = new Date(end_date)
+          endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+          dateFilter.lt = endExclusive
+        }
+        where.date = dateFilter
+      }
+
+      if (mood) {
+        const moodValues = mood
+          .split(',')
+          .map(v => parseInt(v.trim()))
+          .filter(v => Number.isFinite(v))
+
+        if (moodValues.length === 1) {
+          where.mood = moodValues[0]
+        } else if (moodValues.length > 1) {
+          where.mood = { in: moodValues }
+        }
       }
       
       const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString())
@@ -1132,6 +1205,31 @@ export async function routes(app: FastifyInstance) {
       const [reviews, total] = await Promise.all([
         prisma.review.findMany({
           where,
+          select: {
+            id: true,
+            user_id: true,
+            date: true,
+            content: true,
+            mood: true,
+            achievements: true,
+            improvements: true,
+            plans: true,
+            template_id: true,
+            spirit: true,
+            energy: true,
+            focus: true,
+            creativity: true,
+            emotion: true,
+            social: true,
+            focus_score: true,
+            energy_score: true,
+            mood_score: true,
+            prime_directive: true,
+            system_interrupts: true,
+            attachments: true,
+            created_at: true,
+            updated_at: true
+          },
           orderBy: {
             date: 'desc'
           },
@@ -1144,7 +1242,7 @@ export async function routes(app: FastifyInstance) {
       return reply.status(200).send({
         success: true,
         data: {
-          reviews,
+          reviews: reviews.map(normalizeReview),
           pagination: {
             page: parseInt(page.toString()),
             limit: parseInt(limit.toString()),
@@ -1178,7 +1276,7 @@ export async function routes(app: FastifyInstance) {
       
       return reply.status(200).send({
         success: true,
-        data: review,
+        data: normalizeReview(review),
         message: 'Review retrieved successfully'
       })
     } catch (error) {
@@ -1225,7 +1323,7 @@ export async function routes(app: FastifyInstance) {
       
       return reply.status(200).send({
         success: true,
-        data: review,
+        data: normalizeReview(review),
         message: 'Review updated successfully'
       })
     } catch (error) {
@@ -1388,18 +1486,18 @@ export async function routes(app: FastifyInstance) {
         }
       }
       
-      // Calculate bio metrics averages from recent reviews (last 7 days)
+      // Calculate bio metrics averages from recent reviews (last 7 days) using aggregation
       const sevenDaysAgo = new Date(today)
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
       
-      const recentReviews = await prisma.review.findMany({
+      const bioMetricsAgg = await prisma.review.aggregate({
         where: {
           user_id: userId,
           date: {
             gte: sevenDaysAgo
           }
         },
-        select: {
+        _avg: {
           spirit: true,
           energy: true,
           focus: true,
@@ -1409,24 +1507,50 @@ export async function routes(app: FastifyInstance) {
           focus_score: true,
           energy_score: true,
           mood_score: true
-        }
+        },
+        _count: true
       })
       
-      const count = recentReviews.length
-      const avgSpirit = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.spirit || 0), 0) / count : 0
-      const avgEnergy = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.energy || 0), 0) / count : 0
-      const avgFocus = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.focus || 0), 0) / count : 0
-      const avgCreativity = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.creativity || 0), 0) / count : 0
-      const avgEmotion = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.emotion || 0), 0) / count : 0
-      const avgSocial = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.social || 0), 0) / count : 0
-      const avgFocusScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.focus_score || 0), 0) / count : 0
-      const avgEnergyScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.energy_score || 0), 0) / count : 0
-      const avgMoodScore = count > 0 ? recentReviews.reduce((sum, r) => sum + (r.mood_score || 0), 0) / count : 0
+      const count = bioMetricsAgg._count || 0
+      const avgSpirit = bioMetricsAgg._avg.spirit || 0
+      const avgEnergy = bioMetricsAgg._avg.energy || 0
+      const avgFocus = bioMetricsAgg._avg.focus || 0
+      const avgCreativity = bioMetricsAgg._avg.creativity || 0
+      const avgEmotion = bioMetricsAgg._avg.emotion || 0
+      const avgSocial = bioMetricsAgg._avg.social || 0
+      const avgFocusScore = bioMetricsAgg._avg.focus_score || 0
+      const avgEnergyScore = bioMetricsAgg._avg.energy_score || 0
+      const avgMoodScore = bioMetricsAgg._avg.mood_score || 0
       
-      // Get recent reviews (last 5)
+      // Get recent reviews (last 5) - combine with currentReview query
       const recentReviewsList = await prisma.review.findMany({
         where: {
           user_id: userId
+        },
+        select: {
+          id: true,
+          user_id: true,
+          date: true,
+          content: true,
+          mood: true,
+          achievements: true,
+          improvements: true,
+          plans: true,
+          template_id: true,
+          spirit: true,
+          energy: true,
+          focus: true,
+          creativity: true,
+          emotion: true,
+          social: true,
+          focus_score: true,
+          energy_score: true,
+          mood_score: true,
+          prime_directive: true,
+          system_interrupts: true,
+          attachments: true,
+          created_at: true,
+          updated_at: true
         },
         orderBy: {
           date: 'desc'
@@ -1434,22 +1558,8 @@ export async function routes(app: FastifyInstance) {
         take: 5
       })
       
-      // Parse JSON fields for response
-      const parsedCurrentReview = currentReview ? {
-        ...currentReview,
-        achievements: currentReview.achievements ? JSON.parse(currentReview.achievements) : [],
-        improvements: currentReview.improvements ? JSON.parse(currentReview.improvements) : [],
-        plans: currentReview.plans ? JSON.parse(currentReview.plans) : [],
-        attachments: currentReview.attachments ? JSON.parse(currentReview.attachments) : []
-      } : null
-      
-      const parsedRecentReviews = recentReviewsList.map(r => ({
-        ...r,
-        achievements: r.achievements ? JSON.parse(r.achievements) : [],
-        improvements: r.improvements ? JSON.parse(r.improvements) : [],
-        plans: r.plans ? JSON.parse(r.plans) : [],
-        attachments: r.attachments ? JSON.parse(r.attachments) : []
-      }))
+      const parsedCurrentReview = currentReview ? normalizeReview(currentReview) : null
+      const parsedRecentReviews = recentReviewsList.map(normalizeReview)
       
       return reply.status(200).send({
         success: true,
@@ -1578,18 +1688,9 @@ export async function routes(app: FastifyInstance) {
         }
       })
       
-      // Parse for response
-      const parsedReview = {
-        ...review,
-        achievements: review.achievements ? JSON.parse(review.achievements) : [],
-        improvements: review.improvements ? JSON.parse(review.improvements) : [],
-        plans: review.plans ? JSON.parse(review.plans) : [],
-        attachments: review.attachments ? JSON.parse(review.attachments) : []
-      }
-      
       return reply.status(201).send({
         success: true,
-        data: parsedReview,
+        data: normalizeReview(review),
         message: 'Review created successfully'
       })
     } catch (error) {

@@ -84,3 +84,11 @@ packages/backend/scripts/
 
 # Environment files
 deploy/backend/.env.production
+
+# Secrets
+scripts/.secrets
+
+# Sensitive directories and files
+memory-bank/
+deploy-with-password.sh
+deploy-auto.sh

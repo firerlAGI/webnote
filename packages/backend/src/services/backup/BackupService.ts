@@ -4,10 +4,10 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { existsSync, mkdirSync, unlinkSync, statSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync, statSync } from 'fs';
+import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
-import { promisify } from 'util';
 import ossConfig, { type BackupType, type RetentionType } from '../../config/oss.js';
 import OSS from 'ali-oss';
 import { randomBytes, createCipheriv, createDecipheriv } from 'crypto';
@@ -394,7 +394,6 @@ class BackupService {
       });
 
       const filePath = this.getBackupFilePath(userId, backupId);
-      const writeFile = promisify(require('fs').writeFile);
       await writeFile(filePath, encryptedData, 'utf8');
 
       // 步骤6: 上传到OSS
@@ -635,7 +634,8 @@ class BackupService {
       // 步骤4: 恢复笔记
       for (const note of backupData.notes) {
         // 移除原始ID和关联对象，让数据库自动生成
-        const { id, folder, ...noteData } = note;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: _id, folder: _folder, ...noteData } = note;
 
         // 转换 folder_id
         const newFolderId = note.folder_id ? folderIdMap.get(note.folder_id) : null;
@@ -661,7 +661,8 @@ class BackupService {
 
       // 步骤5: 恢复评论
       for (const review of backupData.reviews) {
-        const { id, user, ...reviewData } = review;
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id: _id, user: _user, ...reviewData } = review;
         await prisma.review.create({
           data: {
             ...reviewData,

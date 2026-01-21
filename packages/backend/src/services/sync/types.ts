@@ -13,8 +13,7 @@ import {
   EntityType,
   SyncOperationType,
   Version,
-  ClientSyncState,
-  OperationResult
+  ClientSyncState
 } from '@webnote/shared/types/sync'
 
 /**

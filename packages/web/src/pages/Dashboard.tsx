@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '../contexts/DataContext';
-import { CyberCard, CyberScrambleText } from '../components/CyberUI';
+import { notesAPI } from '../api';
 import { ActivityChart } from '../components/SystemCharts';
+import { CyberCard, CyberScrambleText } from '../components/CyberUI';
+import { Cpu, Wifi, Sparkles, Mic, Paperclip, Send, FileText, Zap, Github } from 'lucide-react';
 import { CyberCompanion } from '../components/CyberCompanion';
-import { Send, Mic, Paperclip, Sparkles, Zap, FileText, Clock, Cpu, Activity, Wifi, Github } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -51,18 +52,35 @@ const Dashboard: React.FC = () => {
     if (action === 'note') navigate('/notes');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
-    addNote({
-      user_id: 1, // 模拟当前登录用户ID
-      title: `速记_${new Date().toLocaleTimeString()}`,
-      content: inputText,
-      folderId: 1,
-      isPinned: false,
-      tags: ['Dashboard', 'Quick']
-    });
-    setInputText('');
+
+    try {
+      // 1. Call real API to create note
+      await notesAPI.create({
+        title: `速记_${new Date().toLocaleTimeString()}`,
+        content: inputText,
+        folder_id: 1, // Using default folder ID 1
+        is_pinned: false
+      });
+
+      // 2. Add to local context (for immediate UI feedback in Data Stream)
+      addNote({
+        user_id: 1, 
+        title: `速记_${new Date().toLocaleTimeString()}`,
+        content: inputText,
+        folderId: 1,
+        isPinned: false,
+        tags: ['Dashboard', 'Quick']
+      });
+
+      setInputText('');
+    } catch (error) {
+      console.error('Failed to create note:', error);
+      // Fallback: still add to local if API fails (optional, but good for UX if offline?)
+      // For now, let's assume we only want to show if successful or keep it simple
+    }
   };
 
   return (
@@ -93,7 +111,7 @@ const Dashboard: React.FC = () => {
                   </div>
                   <div className="text-[10px] font-mono text-gray-500 mb-2">PID: 8821</div>
                 </div>
-                <ActivityChart data={cpuData} color="#ff0055" />
+                <ActivityChart data={cpuData} color="rgb(var(--color-pink))" />
               </CyberCard>
               
               {/* Network Widget */}
@@ -202,7 +220,7 @@ const Dashboard: React.FC = () => {
            {/* Data Stream (Bottom) */}
            <div className="border-l-2 border-gray-800 pl-4 space-y-4 opacity-70 hover:opacity-100 transition-opacity">
               <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-4">Data_Stream</p>
-              {notes.slice(0, 3).map((note, i) => (
+              {notes.slice(0, 3).map((note) => (
                 <div key={note.id} className="pointer-events-auto group cursor-pointer" onClick={() => navigate('/notes')}>
                    <div className="flex items-center gap-2 mb-1">
                       <span className="text-[9px] font-mono text-cyber-cyan">{new Date(note.updatedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>

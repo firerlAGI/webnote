@@ -6,6 +6,18 @@
   --font-sans: 'DM Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', sans-serif;
   --font-mono: 'JetBrains Mono', 'Noto Sans SC', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", 'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans CJK SC', 'WenQuanYi Micro Hei', monospace;
   --font-display: 'Space Grotesk', 'DM Sans', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --color-primary: 0 243 255;
+  --color-cyan: 0, 243, 255;
+  --color-pink: 255 80 140;
+  --color-yellow: 245 220 50;
+}
+
+:root[data-theme='pink'] {
+  --color-primary: 255 80 140;
+}
+
+:root[data-theme='yellow'] {
+  --color-primary: 245 220 50;
 }
 
 html {

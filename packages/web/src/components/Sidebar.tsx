@@ -1,5 +1,4 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom'; // Note: using NavLink conceptually, but will use simple props in App.tsx due to constraint
 import { AppRoute } from '../types';
 import { LayoutDashboard, FileText, CalendarCheck, Settings, LogOut, Hexagon } from 'lucide-react';
 

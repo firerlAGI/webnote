@@ -1,5 +1,5 @@
 import React from 'react';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine } from 'recharts';
 
 // --- Shared SVG Defs for High-Tech Gradients ---
 const TechGradients = () => (
@@ -19,11 +19,11 @@ const TechGradients = () => (
 
       {/* Pink Striped Gradient */}
       <pattern id="pink-stripe" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)">
-        <rect width="2" height="4" transform="translate(0,0)" fill="#ff0055" fillOpacity="0.3" />
+        <rect width="2" height="4" transform="translate(0,0)" fill="rgb(var(--color-pink))" fillOpacity="0.3" />
       </pattern>
       <linearGradient id="pink-fade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stopColor="#ff0055" stopOpacity="0.5"/>
-        <stop offset="100%" stopColor="#ff0055" stopOpacity="0"/>
+        <stop offset="0%" stopColor="rgb(var(--color-pink))" stopOpacity="0.5"/>
+        <stop offset="100%" stopColor="rgb(var(--color-pink))" stopOpacity="0"/>
       </linearGradient>
       <mask id="pink-mask">
          <rect x="0" y="0" width="100%" height="100%" fill="url(#pink-fade)" />
@@ -39,8 +39,8 @@ interface StatRadarProps {
 
 export const StatRadar: React.FC<StatRadarProps> = ({ data }) => {
   return (
-    <div className="w-full h-[300px] relative">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} aspect={undefined}>
+    <div className="w-full h-[300px] relative" style={{ width: '100%', height: '300px' }}>
+      <ResponsiveContainer width="100%" height={300}>
         <RadarChart cx="50%" cy="50%" outerRadius="65%" data={data}>
           <PolarGrid stroke="#374151" strokeDasharray="4 4" />
           <PolarAngleAxis 
@@ -87,17 +87,17 @@ interface ActivityChartProps {
   valueDisplay?: string;
 }
 
-export const ActivityChart: React.FC<ActivityChartProps> = ({ data, color = "#ff0055", label, valueDisplay }) => {
+export const ActivityChart: React.FC<ActivityChartProps> = ({ data, color = "rgb(var(--color-pink))", valueDisplay }) => {
   // Determine gradient ID based on color hex (simplification for this specific theme)
   const isCyan = color === "#00f3ff";
   const maskId = isCyan ? "url(#cyan-mask)" : "url(#pink-mask)";
   const patternId = isCyan ? "url(#cyan-stripe)" : "url(#pink-stripe)";
-  const glowShadow = isCyan ? "drop-shadow-[0_0_8px_rgba(0,243,255,0.6)]" : "drop-shadow-[0_0_8px_rgba(255,0,85,0.6)]";
+  const glowShadow = isCyan ? "drop-shadow-[0_0_8px_rgba(0,243,255,0.6)]" : "drop-shadow-[0_0_8px_rgba(255,80,140,0.6)]";
 
   const latestValue = data.length > 0 ? data[data.length - 1].value : 0;
 
   return (
-    <div className="w-full h-[160px] relative overflow-hidden group">
+    <div className="w-full h-[160px] relative overflow-hidden group" style={{ width: '100%', height: '160px' }}>
       <TechGradients />
       
       {/* Background Tactical Grid */}
@@ -113,7 +113,7 @@ export const ActivityChart: React.FC<ActivityChartProps> = ({ data, color = "#ff
          </div>
       </div>
 
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} aspect={undefined}>
+      <ResponsiveContainer width="100%" height={160}>
         <AreaChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
           <defs>
             {/* We define specific linear gradients here for the stroke fade effect */}

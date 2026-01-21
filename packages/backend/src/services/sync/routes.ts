@@ -10,39 +10,20 @@ import { ConflictService } from './ConflictService.js'
 import { QueueService } from './QueueService.js'
 import {
   SyncRequest,
-  SyncStatus,
   ConflictResolution
 } from '@webnote/shared/types/sync'
 import {
   WebSocketMessageType,
-  WebSocketHandshakeRequest,
   WebSocketHandshakeResponse,
-  WebSocketAuthRequest,
-  WebSocketAuthResponse,
-  WebSocketSyncRequest,
-  WebSocketSyncResponse,
-  WebSocketServerUpdate,
-  WebSocketConflictNotification,
-  WebSocketStatusChangeNotification,
   WebSocketErrorMessage,
-  WebSocketCloseMessage,
   SyncDataRequest,
   SyncDataResponse,
   GetSyncStatusRequest,
-  GetSyncStatusResponse,
-  GetSyncQueueRequest,
-  GetSyncQueueResponse,
-  ResolveConflictRequest,
-  ResolveConflictResponse,
-  BatchResolveConflictRequest,
-  BatchResolveConflictResponse,
   GetDataDiffRequest,
-  GetDataDiffResponse,
   CancelSyncRequest,
   CancelSyncResponse,
   RetrySyncRequest,
   RetrySyncResponse,
-  ClearSyncHistoryRequest,
   ClearSyncHistoryResponse,
   PollingRequest,
   PollingResponse,
@@ -55,11 +36,8 @@ import {
   PollingPriority,
   GetConflictsRequest,
   GetConflictsResponse,
-  GetConflictRequest,
   GetConflictResponse,
-  IgnoreConflictRequest,
   IgnoreConflictResponse,
-  GetConflictStatsRequest,
   GetConflictStatsResponse,
   ResolveConflictApiRequest,
   ResolveConflictApiResponse,
@@ -234,7 +212,6 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
   app.post('/sync/sync-data', {
     preHandler: authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const userId = getUserId(request)
     const requestData = request.body as SyncDataRequest
 
     try {
@@ -272,7 +249,7 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
     preHandler: authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(request)
-    const { client_id, sync_id } = request.query as GetSyncStatusRequest
+    const { sync_id } = request.query as GetSyncStatusRequest
 
     try {
       const response = await syncService.getSyncStatus(userId, sync_id)
@@ -433,7 +410,7 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
       const result = await queueService.processQueue(userId, async (operation) => {
         try {
           // 根据操作类型执行相应的同步操作
-          let syncOperation: any = {
+          const syncOperation: any = {
             operation_id: operation.id,
             operation_type: operation.operation_type,
             entity_type: operation.entity_type,
@@ -1029,8 +1006,8 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
    */
   app.post('/sync/clear-history', {
     preHandler: authenticate
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { client_id, retain_days } = request.body as ClearSyncHistoryRequest
+  }, async (_request: FastifyRequest, reply: FastifyReply) => {
+    // const { client_id, retain_days } = request.body as ClearSyncHistoryRequest
 
     try {
       // 实现清除历史逻辑
@@ -1061,7 +1038,7 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
     preHandler: authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(request)
-    const { client_id, since, entity_types } = request.body as PollingRequest
+    const { client_id, since } = request.body as PollingRequest
 
     if (!client_id) {
       return reply.status(400).send({
@@ -1119,7 +1096,7 @@ export function registerSyncRoutes(app: FastifyInstance, syncService: SyncServic
     preHandler: authenticate
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const userId = getUserId(request)
-    const { client_id, priority, reason } = request.body as ForceFallbackRequest
+    const { client_id, priority } = request.body as ForceFallbackRequest
 
     if (!client_id) {
       return reply.status(400).send({

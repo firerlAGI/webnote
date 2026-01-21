@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, GitCommit, GitBranch, GitPullRequest, AlertCircle, CheckCircle, Activity, FileText, Users, Star, GitFork } from 'lucide-react';
+import { Clock, GitCommit, GitBranch, GitPullRequest, AlertCircle, CheckCircle, Activity, Users, Star, GitFork } from 'lucide-react';
 
 interface Commit {
   sha: string;

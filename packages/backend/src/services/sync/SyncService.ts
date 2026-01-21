@@ -11,15 +11,13 @@ import {
   SyncOperationType,
   EntityType,
   Conflict,
-  ConflictResolution,
   ConflictResolutionResult,
   ConflictType,
   ConflictResolutionStrategy,
   SyncStatus,
   ClientSyncState,
   ServerUpdate,
-  OperationResult,
-  Version
+  OperationResult
 } from '@webnote/shared/types/sync'
 import { SyncStatusDetail,
   QueuedSyncOperation,
@@ -31,7 +29,6 @@ import { SyncStatusDetail,
 import { SyncStateManager } from './SyncStateManager.js'
 import { WebSocket } from '@fastify/websocket'
 import { ConflictService } from './ConflictService.js'
-import { QueueService } from './QueueService.js'
 import crypto from 'crypto'
 import { Logger } from 'pino'
 import {
@@ -527,9 +524,9 @@ private async validateDevice(userId: number, deviceId: string): Promise<boolean>
  * 检查并清理重复连接
  */
 private async enforceConnectionLimits(connection: WebSocketConnection): Promise<void> {
-  const { user_id, device_id, client_id } = connection
+    const { user_id, device_id } = connection
 
-  // 检查用户的现有连接
+    // 检查用户的现有连接
   const userConnections: Array<{ id: string; conn: WebSocketConnection }> = []
   for (const [id, conn] of this.activeConnections.entries()) {
     if (conn.user_id === user_id && conn.connection_id !== connection.connection_id) {
@@ -915,7 +912,7 @@ private startHeartbeatCheck(): void {
             conflicts.push(conflict)
 
             // 尝试自动解决冲突
-            const resolution = await this.resolveConflict(
+            await this.resolveConflict(
               conflict,
               request.default_resolution_strategy || ConflictResolutionStrategy.LATEST_WINS
             )
@@ -1399,7 +1396,7 @@ private startHeartbeatCheck(): void {
             modified_at: operation.timestamp,
             operation_type: operation.operation_type
           },
-          conflict_fields: this.getConflictFields(currentRecord, (operation as any).data || {}),
+          conflict_fields: this.getConflictFields(currentRecord, (operation as any).data || (operation as any).changes || {}),
           suggested_strategy: ConflictResolutionStrategy.LATEST_WINS,
           timestamp: new Date().toISOString()
         }
@@ -1440,7 +1437,7 @@ private startHeartbeatCheck(): void {
           result.new_version = conflict.server_data.version + 1
           break
 
-        case ConflictResolutionStrategy.LATEST_WINS:
+        case ConflictResolutionStrategy.LATEST_WINS: {
           const serverTime = new Date(conflict.server_data.modified_at).getTime()
           const clientTime = new Date(conflict.client_data.modified_at).getTime()
 
@@ -1453,13 +1450,15 @@ private startHeartbeatCheck(): void {
           }
           result.success = true
           break
+        }
 
-        case ConflictResolutionStrategy.MERGE:
+        case ConflictResolutionStrategy.MERGE: {
           const mergedData = this.mergeData(conflict.server_data.data, conflict.client_data.data)
           result.success = true
           result.resolved_data = mergedData
           result.new_version = conflict.server_data.version + 1
           break
+        }
 
         case ConflictResolutionStrategy.MANUAL:
           // 手动解决需要等待用户输入
@@ -1505,7 +1504,7 @@ private startHeartbeatCheck(): void {
           result.new_version = conflict.server_data.version + 1
           break
 
-        case ConflictResolutionStrategy.LATEST_WINS:
+        case ConflictResolutionStrategy.LATEST_WINS: {
           const serverTime = new Date(conflict.server_data.modified_at).getTime()
           const clientTime = new Date(conflict.client_data.modified_at).getTime()
 
@@ -1518,13 +1517,15 @@ private startHeartbeatCheck(): void {
           }
           result.success = true
           break
+        }
 
-        case ConflictResolutionStrategy.MERGE:
+        case ConflictResolutionStrategy.MERGE: {
           const mergedData = this.mergeData(conflict.server_data.data, conflict.client_data.data)
           result.success = true
           result.resolved_data = mergedData
           result.new_version = conflict.server_data.version + 1
           break
+        }
 
         case ConflictResolutionStrategy.MANUAL:
           // 手动解决需要等待用户输入
@@ -1735,9 +1736,9 @@ private startHeartbeatCheck(): void {
    * 获取同步队列
    */
   async getSyncQueue(user_id: number, queueType: string = 'all'): Promise<GetSyncQueueResponse> {
-    let operations: QueuedSyncOperation[] = []
+    const operations: QueuedSyncOperation[] = []
 
-    for (const [clientId, ops] of this.syncQueue.entries()) {
+    for (const ops of this.syncQueue.values()) {
       for (const op of ops) {
         if (op.user_id === user_id) {
           if (queueType === 'all' || op.status === queueType) {
@@ -1913,6 +1914,9 @@ private startHeartbeatCheck(): void {
    * 获取客户端记录（模拟）
    */
   private async getClientRecord(clientId: string, entityType: EntityType, entityId: number): Promise<any> {
+    void clientId;
+    void entityType;
+    void entityId;
     // 在实际实现中，这里应该从客户端缓存或数据库获取
     // 目前返回null表示需要客户端提供
     return null
@@ -2131,7 +2135,7 @@ private startHeartbeatCheck(): void {
     }
 
     // 清除所有心跳计时器
-    for (const [connection_id, timer] of this.heartbeatTimers.entries()) {
+    for (const timer of this.heartbeatTimers.values()) {
       clearInterval(timer)
     }
     this.heartbeatTimers.clear()
@@ -2169,7 +2173,7 @@ private startHeartbeatCheck(): void {
       }
     }
 
-    const pollingService = this.fallbackManager.getPollingService()
+    // const pollingService = this.fallbackManager.getPollingService()
     const healthTracker = this.fallbackManager.getHealthTracker()
 
     try {

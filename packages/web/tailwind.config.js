@@ -13,11 +13,11 @@ export default {
           black: '#020203',
           dark: '#0a0a0f',
           panel: '#12121a',
-          cyan: '#00f3ff',
-          pink: '#ff0055',
-          yellow: '#fcee0a',
-          dim: 'rgba(0, 243, 255, 0.1)',
-          grid: 'rgba(0, 243, 255, 0.03)',
+          cyan: 'rgb(var(--color-primary) / <alpha-value>)',
+          pink: 'rgb(var(--color-pink) / <alpha-value>)',
+          yellow: 'rgb(var(--color-yellow) / <alpha-value>)',
+          dim: 'rgb(var(--color-primary) / 0.1)',
+          grid: 'rgb(var(--color-primary) / 0.03)',
         },
       },
       fontFamily: {
@@ -39,9 +39,9 @@ export default {
         float: 'float 6s ease-in-out infinite',
       },
       boxShadow: {
-        'neon-cyan': '0 0 5px #00f3ff, 0 0 20px rgba(0, 243, 255, 0.3)',
-        'neon-pink': '0 0 5px #ff0055, 0 0 20px rgba(255, 0, 85, 0.3)',
-        'neon-yellow': '0 0 5px #fcee0a, 0 0 20px rgba(252, 238, 10, 0.3)',
+        'neon-cyan': '0 0 5px rgb(var(--color-primary)), 0 0 20px rgb(var(--color-primary) / 0.3)',
+        'neon-pink': '0 0 5px rgb(var(--color-pink)), 0 0 20px rgb(var(--color-pink) / 0.3)',
+        'neon-yellow': '0 0 5px rgb(var(--color-yellow)), 0 0 20px rgb(var(--color-yellow) / 0.3)',
       },
       keyframes: {
         glitch: {

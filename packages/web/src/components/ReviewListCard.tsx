@@ -1,17 +1,10 @@
 import React from 'react';
 import { Calendar, Brain, Activity, Smile, Edit, Trash2 } from 'lucide-react';
 import { CyberButton } from './CyberUI';
+import type { Review } from '../types';
 
 interface ReviewListCardProps {
-  review: {
-    id: number;
-    date: string;
-    content?: string;
-    mood?: number;
-    achievements?: string[];
-    improvements?: string[];
-    plans?: string[];
-  };
+  review: Review;
   onView: (id: number) => void;
   onEdit: (id: number) => void;
   onDelete: (id: number) => void;
@@ -24,13 +17,6 @@ const ReviewListCard: React.FC<ReviewListCardProps> = ({ review, onView, onEdit,
     if (mood >= 8) return 'text-cyber-cyan';
     if (mood >= 5) return 'text-cyber-yellow';
     return 'text-cyber-pink';
-  };
-
-  const getMoodBgColor = (mood?: number) => {
-    if (!mood) return 'bg-gray-700';
-    if (mood >= 8) return 'bg-cyber-cyan';
-    if (mood >= 5) return 'bg-cyber-yellow';
-    return 'bg-cyber-pink';
   };
 
   // 获取核心任务预览
@@ -78,7 +64,7 @@ const ReviewListCard: React.FC<ReviewListCardProps> = ({ review, onView, onEdit,
           <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden ml-1">
             <div 
               className="h-full bg-cyber-cyan transition-all duration-300"
-              style={{ width: `${review.mood ? review.mood * 10 : 50}%` }}
+              style={{ width: `${review.focus_score || (review.focus ? review.focus * 10 : 0)}%` }}
             />
           </div>
         </div>
@@ -88,7 +74,7 @@ const ReviewListCard: React.FC<ReviewListCardProps> = ({ review, onView, onEdit,
           <div className="w-16 h-1.5 bg-gray-800 rounded-full overflow-hidden ml-1">
             <div 
               className="h-full bg-cyber-pink transition-all duration-300"
-              style={{ width: `${review.mood ? review.mood * 10 : 50}%` }}
+              style={{ width: `${review.energy_score || (review.energy ? review.energy * 10 : 0)}%` }}
             />
           </div>
         </div>

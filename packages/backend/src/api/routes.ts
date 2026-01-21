@@ -4,7 +4,7 @@ import { prisma } from '../server.js'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { backupService, BackupInfo, RestoreOptions } from '../services/backup/BackupService.js'
+import { backupService, RestoreOptions } from '../services/backup/BackupService.js'
 import { normalizeReview } from './reviewTransform.js'
 
 // User type for JWT payload
@@ -346,6 +346,60 @@ export async function routes(app: FastifyInstance) {
         success: true,
         data: user,
         message: 'User information retrieved successfully'
+      })
+    } catch (error) {
+      app.log.error(error)
+      return reply.status(500).send({ success: false, error: 'Internal server error' })
+    }
+  })
+
+  app.get('/user/stats', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const userId = (request.user as UserPayload).id
+      
+      // Calculate total word count from notes and reviews
+      // We fetch only necessary fields to minimize data transfer from DB
+      const [notes, reviews] = await Promise.all([
+        prisma.note.findMany({
+          where: { user_id: userId },
+          select: { content: true, created_at: true, updated_at: true }
+        }),
+        prisma.review.findMany({
+          where: { user_id: userId },
+          select: { content: true, created_at: true, updated_at: true }
+        })
+      ])
+      
+      let totalWordCount = 0
+      
+      // Helper to count characters (simple length for now)
+      const countCharacters = (text: string) => {
+         return text ? text.length : 0
+      }
+      
+      const activeDates = new Set<string>()
+      
+      notes.forEach(note => {
+        if (note.content) totalWordCount += countCharacters(note.content)
+        activeDates.add(note.created_at.toISOString().split('T')[0])
+        activeDates.add(note.updated_at.toISOString().split('T')[0])
+      })
+      
+      reviews.forEach(review => {
+        if (review.content) totalWordCount += countCharacters(review.content)
+        activeDates.add(review.created_at.toISOString().split('T')[0])
+        activeDates.add(review.updated_at.toISOString().split('T')[0])
+      })
+      
+      const activeDays = activeDates.size
+      
+      return reply.status(200).send({
+        success: true,
+        data: {
+          totalWordCount,
+          activeDays
+        },
+        message: 'User statistics retrieved successfully'
       })
     } catch (error) {
       app.log.error(error)
@@ -1453,8 +1507,7 @@ export async function routes(app: FastifyInstance) {
       })
       
       let streak = 0
-      const oneDay = 24 * 60 * 60 * 1000
-      let checkDate = new Date(today)
+      const checkDate = new Date(today)
       
       // Check if there's a review for today
       const todayReview = allReviews.find(r => {
@@ -1507,11 +1560,9 @@ export async function routes(app: FastifyInstance) {
           focus_score: true,
           energy_score: true,
           mood_score: true
-        },
-        _count: true
+        }
       })
       
-      const count = bioMetricsAgg._count || 0
       const avgSpirit = bioMetricsAgg._avg.spirit || 0
       const avgEnergy = bioMetricsAgg._avg.energy || 0
       const avgFocus = bioMetricsAgg._avg.focus || 0

@@ -11,6 +11,7 @@
     "format": "turbo run format"
   },
   "devDependencies": {
+    "eslint-config-prettier": "^9.1.0",
     "terser": "^5.44.1",
     "turbo": "^1.10.0"
   },

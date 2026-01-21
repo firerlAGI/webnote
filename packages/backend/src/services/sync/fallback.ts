@@ -4,7 +4,6 @@
  */
 
 import { Logger } from 'pino'
-import { ServerUpdate } from '@webnote/shared/types/sync'
 import { PrismaClient } from '@prisma/client'
 
 // ============================================================================

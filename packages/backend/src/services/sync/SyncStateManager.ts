@@ -711,7 +711,7 @@ export class SyncStateManager extends EventEmitter {
   private async updateSyncStatistics(sync: SyncStatusDetail): Promise<void> {
     const avgDuration = await this.calculateAverageDuration(sync.user_id, sync)
 
-    const stats = await this.prisma.syncStatistics.upsert({
+    await this.prisma.syncStatistics.upsert({
       where: { user_id: sync.user_id },
       update: {
         total_syncs: { increment: 1 },

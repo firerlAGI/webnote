@@ -6,10 +6,8 @@
 import { PrismaClient } from '@prisma/client'
 import { Logger } from 'pino'
 import {
-  Conflict,
   ConflictResolution,
   ConflictResolutionResult,
-  ConflictType,
   ConflictResolutionStrategy,
   SyncOperation,
   SyncOperationType,
@@ -309,7 +307,7 @@ export class ConflictService {
           modified_at: operation.timestamp,
           operation_type: operation.operation_type
         },
-        conflict_fields: this.getConflictFields(currentRecord, (operation as any).data || {}),
+        conflict_fields: this.getConflictFields(currentRecord, (operation as any).data || (operation as any).changes || {}),
         suggested_strategy: this.getSuggestedStrategy(conflictType),
         status: 'unresolved',
         timestamp: new Date().toISOString()
@@ -477,8 +475,6 @@ export class ConflictService {
     operation: SyncOperation,
     currentRecord: any
   ): Promise<ConflictRecord | null> {
-    const entityKey = `${operation.entity_type}:${operation.entity_id}`
-
     // 获取数据依赖关系
     const dependency = await this.analyzeDataDependencies(userId, operation.entity_type, operation.entity_id!)
 
@@ -573,8 +569,9 @@ export class ConflictService {
   async resolveConflict(
     conflict: ConflictRecord,
     resolution: ConflictResolution,
-    userId: number
+    _userId: number
   ): Promise<ConflictResolutionResult> {
+    void _userId;
     const result: ConflictResolutionResult = {
       conflict_id: conflict.conflict_id,
       success: false
@@ -697,7 +694,7 @@ export class ConflictService {
     conflict: ConflictRecord,
     config: ConflictResolutionStrategyConfig
   ): Promise<ConflictResolutionResult> {
-    let result: ConflictResolutionResult = {
+    const result: ConflictResolutionResult = {
       conflict_id: conflict.conflict_id,
       success: false
     }
@@ -816,7 +813,7 @@ export class ConflictService {
   ): Promise<{ conflicts: ConflictRecord[]; total: number }> {
     const conflicts: ConflictRecord[] = []
 
-    for (const [_, conflict] of this.conflictRecords) {
+    for (const conflict of this.conflictRecords.values()) {
       if (conflict.user_id !== userId) continue
       if (status !== 'all' && conflict.status !== status) continue
 
@@ -877,7 +874,7 @@ export class ConflictService {
       by_type: {} as Record<string, number>
     }
 
-    for (const [_, conflict] of this.conflictRecords) {
+    for (const conflict of this.conflictRecords.values()) {
       if (conflict.user_id !== userId) continue
 
       stats.total++
@@ -1029,6 +1026,9 @@ export class ConflictService {
     entityId: number,
     fieldName: string
   ): Promise<boolean> {
+    void userId;
+    void entityId;
+    void fieldName;
     // 在实际实现中，这里应该检查是否有其他客户端也修改了同一字段
     // 目前简化处理，返回false表示没有并发变更
     return false
@@ -1146,23 +1146,26 @@ export class ConflictService {
   private async checkRecordExists(entityType: EntityType, entityId: number, userId: number): Promise<boolean> {
     try {
       switch (entityType) {
-        case 'note':
+        case 'note': {
           const note = await this.prisma.note.findFirst({
             where: { id: entityId, user_id: userId }
           })
           return !!note
+        }
 
-        case 'folder':
+        case 'folder': {
           const folder = await this.prisma.folder.findFirst({
             where: { id: entityId, user_id: userId }
           })
           return !!folder
+        }
 
-        case 'review':
+        case 'review': {
           const review = await this.prisma.review.findFirst({
             where: { id: entityId, user_id: userId }
           })
           return !!review
+        }
 
         default:
           return false

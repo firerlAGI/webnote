@@ -106,21 +106,24 @@ app.get('/health', async () => {
 })
 
 // Database performance stats (admin only)
-app.get('/admin/database/stats', async (request, reply) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.get('/admin/database/stats', async (_req, _res) => {
   // TODO: 添加管理员认证
   const stats = databaseMonitor.getDatabaseStats()
   return stats
 })
 
 // Database performance report (admin only)
-app.get('/admin/database/report', async (request, reply) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.get('/admin/database/report', async (_req, _res) => {
   // TODO: 添加管理员认证
   databaseMonitor.printPerformanceReport()
   return { success: true, message: 'Performance report printed to console' }
 })
 
 // Clear database logs (admin only)
-app.delete('/admin/database/logs', async (request, reply) => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.delete('/admin/database/logs', async (_req, _res) => {
   // TODO: 添加管理员认证
   databaseMonitor.clearLogs()
   return { success: true, message: 'Database logs cleared' }
@@ -167,12 +170,15 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'))
 // Start server
 const PORT = process.env.PORT || 3000
 const HOST = process.env.HOST || '0.0.0.0'
-app.listen({ port: Number(PORT), host: HOST }, (err) => {
-  if (err) {
-    app.log.error(err)
-    process.exit(1)
-  }
-  app.log.info(`Server listening on http://${HOST}:${PORT}`)
-})
+
+if (process.env.NODE_ENV !== 'test') {
+  app.listen({ port: Number(PORT), host: HOST }, (err) => {
+    if (err) {
+      app.log.error(err)
+      process.exit(1)
+    }
+    app.log.info(`Server listening on http://${HOST}:${PORT}`)
+  })
+}
 
 export { app, prisma, syncService, queueService, conflictService, backupService, scheduler }

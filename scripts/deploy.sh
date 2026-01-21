@@ -128,7 +128,19 @@ if ! command -v expect &> /dev/null; then
 fi
 
 # 使用expect自动上传
-PASSWORD="REDACTED_PASSWORD"
+# 尝试从本地 secrets 文件加载密码
+if [ -f "$PROJECT_ROOT/scripts/.secrets" ]; then
+    source "$PROJECT_ROOT/scripts/.secrets"
+fi
+
+# 检查密码是否设置
+if [ -z "$DEPLOY_PASSWORD" ]; then
+    echo -e "${RED}错误: 未设置 DEPLOY_PASSWORD${NC}"
+    echo -e "${YELLOW}请在 scripts/.secrets 文件中设置 DEPLOY_PASSWORD 或导出环境变量${NC}"
+    exit 1
+fi
+
+PASSWORD="$DEPLOY_PASSWORD"
 expect << EOF
 set timeout 300
 spawn scp /tmp/webnote_$TIMESTAMP.tar.gz $SERVER:/tmp/

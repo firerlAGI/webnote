@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CyberCard, CyberInput, CyberButton } from '../components/CyberUI';
+import { CyberCard, CyberButton } from '../components/CyberUI';
 import { StatRadar } from '../components/SystemCharts';
 import ReviewListCard from '../components/ReviewListCard';
 import ReviewDetailModal from '../components/ReviewDetailModal';
@@ -15,6 +15,8 @@ const ReviewPage: React.FC = () => {
     date: new Date().toISOString().split('T')[0],
     content: '',
     mood: 8,
+    focus: 85,
+    energy: 92,
     achievements: [] as string[],
     improvements: [] as string[],
     plans: [] as string[],
@@ -145,7 +147,13 @@ const ReviewPage: React.FC = () => {
       setSaving(true);
       setError(null);
       
-      const response = await reviewsAPI.create(formData);
+      const response = await reviewsAPI.create({
+        ...formData,
+        focus: Math.round(formData.focus / 10),
+        energy: Math.round(formData.energy / 10),
+        focus_score: formData.focus,
+        energy_score: formData.energy
+      });
       
       if (response.data.success) {
         setSaveSuccess(true);
@@ -154,6 +162,8 @@ const ReviewPage: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           content: '',
           mood: 8,
+          focus: 85,
+          energy: 92,
           achievements: [],
           improvements: [],
           plans: [],
@@ -314,20 +324,82 @@ const ReviewPage: React.FC = () => {
 
            {/* Quick Stats Grid */}
            <div className="grid grid-cols-3 gap-2 sm:gap-3 shrink-0">
-             <div className="p-2 sm:p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-cyan/50 transition-colors">
-                <Brain size={16} sm:size-20 className="text-gray-500 group-hover:text-cyber-cyan" />
-                <span className="text-base sm:text-lg font-bold font-display text-white">85%</span>
+             <div className="relative p-2 sm:p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-cyan/50 transition-colors overflow-hidden cursor-pointer">
+                <Brain size={20} className="text-gray-500 group-hover:text-cyber-cyan" />
+                <span className="text-base sm:text-lg font-bold font-display text-white">{formData.focus}%</span>
                 <span className="text-[9px] text-gray-600 font-mono">FOCUS</span>
+                
+                {/* Focus Slider */}
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  value={formData.focus}
+                  onChange={(e) => setFormData({...formData, focus: parseInt(e.target.value)})}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
+                  title="Drag to adjust focus level"
+                />
+                
+                {/* Focus Indicator */}
+                <div className="absolute bottom-0 left-0 h-1 bg-gray-800 w-full">
+                  <div 
+                    className="h-full bg-cyber-cyan transition-all duration-300" 
+                    style={{width: `${formData.focus}%`}}
+                  />
+                </div>
              </div>
-             <div className="p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-pink/50 transition-colors">
-                <Activity size={16} sm:size-20 className="text-gray-500 group-hover:text-cyber-pink" />
-                <span className="text-base sm:text-lg font-bold font-display text-white">92%</span>
+             
+             <div className="relative p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-pink/50 transition-colors overflow-hidden cursor-pointer">
+                <Activity size={20} className="text-gray-500 group-hover:text-cyber-pink" />
+                <span className="text-base sm:text-lg font-bold font-display text-white">{formData.energy}%</span>
                 <span className="text-[9px] text-gray-600 font-mono">ENERGY</span>
+                
+                {/* Energy Slider */}
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  value={formData.energy}
+                  onChange={(e) => setFormData({...formData, energy: parseInt(e.target.value)})}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
+                  title="Drag to adjust energy level"
+                />
+                
+                {/* Energy Indicator */}
+                <div className="absolute bottom-0 left-0 h-1 bg-gray-800 w-full">
+                  <div 
+                    className="h-full bg-cyber-pink transition-all duration-300" 
+                    style={{width: `${formData.energy}%`}}
+                  />
+                </div>
              </div>
-             <div className="p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-yellow/50 transition-colors">
-                <Smile size={16} sm:size-20 className="text-gray-500 group-hover:text-cyber-yellow" />
-                <span className="text-base sm:text-lg font-bold font-display text-white">7.5</span>
+             
+             <div className="relative p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2 group hover:border-cyber-yellow/50 transition-colors overflow-hidden cursor-pointer">
+                <Smile size={20} className={`transition-colors duration-300 ${formData.mood >= 8 ? 'text-cyber-cyan' : formData.mood >= 5 ? 'text-cyber-yellow' : 'text-cyber-pink'}`} />
+                <span className="text-base sm:text-lg font-bold font-display text-white">{formData.mood}</span>
                 <span className="text-[9px] text-gray-600 font-mono">MOOD</span>
+                
+                {/* 隐形滑块，允许拖动评价 */}
+                <input 
+                  type="range" 
+                  min="1" 
+                  max="10" 
+                  step="1"
+                  value={formData.mood}
+                  onChange={(e) => setFormData({...formData, mood: parseInt(e.target.value)})}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-10"
+                  title="Drag to adjust mood level"
+                />
+                
+                {/* 底部进度条指示器 */}
+                <div className="absolute bottom-0 left-0 h-1 bg-gray-800 w-full">
+                  <div 
+                    className={`h-full transition-all duration-300 ${formData.mood >= 8 ? 'bg-cyber-cyan' : formData.mood >= 5 ? 'bg-cyber-yellow' : 'bg-cyber-pink'}`} 
+                    style={{width: `${(formData.mood / 10) * 100}%`}}
+                  />
+                </div>
              </div>
            </div>
         </div>

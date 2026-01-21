@@ -18,7 +18,7 @@ export const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete 
     let delay = 0;
     
     // Process logs
-    bootLogs.forEach((log, index) => {
+    bootLogs.forEach((log) => {
       delay += Math.random() * 300 + 100;
       setTimeout(() => {
         setLogs(prev => [...prev, log]);
@@ -86,7 +86,7 @@ export const BootSequence: React.FC<{ onComplete: () => void }> = ({ onComplete 
       </div>
       
       {/* Background Noise */}
-      <div className="fixed inset-0 pointer-events-none opacity-10 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+      <div className="fixed inset-0 pointer-events-none opacity-10 bg-[url('data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%2280%22%20height=%2280%22%20viewBox=%220%200%2080%2080%22%3E%3Cfilter%20id=%22n%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%220.8%22%20numOctaves=%222%22%20stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect%20width=%2280%22%20height=%2280%22%20filter=%22url(%23n)%22%20opacity=%220.4%22/%3E%3C/svg%3E')]"></div>
     </div>
   );
 };

@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { backupService } from '../../src/services/backup/BackupService'
-import { prisma } from '../../src/server'
+import { prisma } from '../setup'
 
 describe('BackupService', () => {
   let testUserId: number

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Heart, Zap, Activity } from 'lucide-react';
-import { CyberScrambleText } from './CyberUI';
+import { Activity } from 'lucide-react';
 
 // 预设对话库
 const DIALOGUES = [

@@ -52,8 +52,35 @@ Thumbs.db
 
 # TypeScript
 *.tsbuildinfo
+*.d.ts.map
+*.js.map
 
 # Package manager
 pnpm-lock.yaml
 yarn.lock
 package-lock.json
+
+# Build artifacts
+*.tar.gz
+*.tgz
+deploy/backend/shared
+deploy/web
+deploy/backend/.env
+
+# Database files
+*.db
+*.db-journal
+prisma/dev.db
+
+# Backups
+packages/backend/src/backups/
+deploy/backend/prisma/dev.db
+
+# Backup files
+*.backup
+
+# Test scripts (may contain credentials)
+packages/backend/scripts/
+
+# Environment files
+deploy/backend/.env.production

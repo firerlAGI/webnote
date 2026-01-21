@@ -274,7 +274,7 @@ export class BackupScheduler {
 
     const startTime = new Date()
     const taskId = `${task.id}_${startTime.getTime()}`
-    let result: TaskResult = {
+    const result: TaskResult = {
       taskId,
       taskType: task.type,
       success: false,

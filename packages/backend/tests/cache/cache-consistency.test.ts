@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { prisma, logger, createTestUser, createTestNote, createTestData, delay } from '../setup'
+import { prisma, createTestUser, createTestNote, delay } from '../setup'
 
 // ============================================================================
 // 模拟三级缓存实现
@@ -26,7 +26,9 @@ class MemoryCache {
     if (this.cache.size >= this.maxSize) {
       // LRU淘汰
       const firstKey = this.cache.keys().next().value
-      this.cache.delete(firstKey)
+      if (firstKey) {
+        this.cache.delete(firstKey)
+      }
     }
 
     this.cache.set(key, {
@@ -237,11 +239,12 @@ class HybridCache {
     l3Size: number
     totalSize: number
   } {
+    const l2Size = (this.l2 as any).cache.size
     return {
       l1Size: this.l1.size(),
-      l2Size: this.l2.cache.size,
+      l2Size: l2Size,
       l3Size: this.l3.size(),
-      totalSize: this.l1.size() + this.l2.cache.size + this.l3.size(),
+      totalSize: this.l1.size() + l2Size + this.l3.size(),
     }
   }
 
@@ -586,7 +589,7 @@ describe('缓存一致性测试', () => {
 
       // 模拟从数据库同步到缓存
       const key = `note_${note.id}`
-      await cache.set(key, note, note.version || 1)
+      await cache.set(key, note, (note as any).version || 1)
 
       // 从缓存读取
       const cachedNote = await cache.get(key)
@@ -601,24 +604,24 @@ describe('缓存一致性测试', () => {
 
       // 同步到缓存
       const key = `note_${note.id}`
-      await cache.set(key, note, note.version || 1)
+      await cache.set(key, note, (note as any).version || 1)
 
       // 更新数据库
       const updatedNote = await prisma.note.update({
         where: { id: note.id },
         data: {
           title: 'Updated',
-          version: (note.version || 1) + 1,
         },
       })
 
       // 同步更新到缓存
-      await cache.set(key, updatedNote, updatedNote.version || 2)
+      const newVersion = (note as any).version ? (note as any).version + 1 : 2
+      await cache.set(key, updatedNote, newVersion)
 
       // 验证缓存与数据库一致
       const cachedNote = await cache.get(key)
       expect(cachedNote?.data.title).toBe('Updated')
-      expect(cachedNote?.version).toBe(updatedNote.version || 2)
+      expect(cachedNote?.version).toBe(newVersion)
     })
 
     it('应该正确处理数据库删除', async () => {
@@ -629,7 +632,7 @@ describe('缓存一致性测试', () => {
 
       // 同步到缓存
       const key = `note_${note.id}`
-      await cache.set(key, note, note.version || 1)
+      await cache.set(key, note, (note as any).version || 1)
 
       // 从数据库删除
       await prisma.note.delete({

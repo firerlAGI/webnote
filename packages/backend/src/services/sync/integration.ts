@@ -164,7 +164,7 @@ const gracefulShutdown = async (signal: string) => {
     await app.close()
 
     // 断开数据库连接
-    await prisma.\$disconnect()
+    await prisma.$disconnect()
 
     app.log.info('Graceful shutdown completed')
     process.exit(0)

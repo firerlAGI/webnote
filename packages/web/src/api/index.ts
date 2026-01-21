@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+// API URL 配置
+// 生产环境使用相对路径，通过 Nginx 代理到后端
+// 开发环境可以直接使用 localhost
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === 'production' ? '/api' : 'http://localhost:3000/api');
 
 // Create axios instance
 const api = axios.create({
@@ -57,6 +60,8 @@ export const userAPI = {
   
   updateMe: (data: { username?: string; email?: string }) =>
     api.put('/user/me', data),
+  
+  getStats: () => api.get('/user/stats'),
 };
 
 // Notes API
@@ -114,7 +119,11 @@ export const reviewsAPI = {
     improvements?: string[];
     plans?: string[];
     template_id?: number;
-  }) => api.post('/reviews', data),
+          focus_score?: number;
+          energy_score?: number;
+          focus?: number;
+          energy?: number;
+        }) => api.post('/reviews/detailed', data),
   
   getAll: (params?: {
     start_date?: string;

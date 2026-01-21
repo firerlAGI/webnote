@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { authAPI, userAPI, notesAPI, foldersAPI, reviewsAPI, backupAPI } from '../api';
 
 interface TestResult {

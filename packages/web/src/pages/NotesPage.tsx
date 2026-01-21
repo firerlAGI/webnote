@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../contexts/DataContext';
-import { CyberCard, CyberButton, CyberTextArea, CyberTag, CyberScrambleText } from '../components/CyberUI';
-import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Save, Cloud, Hash, ChevronRight, FileCode, Code } from 'lucide-react';
+import { CyberCard, CyberTextArea, CyberTag } from '../components/CyberUI';
+import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Cloud, Hash, ChevronRight, FileCode, Code } from 'lucide-react';
 
 const NotesPage: React.FC = () => {
   const { notes, folders, addNote, updateNote, deleteNote, updateFolder } = useData();
@@ -15,6 +15,10 @@ const NotesPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'write' | 'read'>('write');
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'synced'>('synced');
+  
+  // Tag Input State
+  const [isAddingTag, setIsAddingTag] = useState(false);
+  const [newTagValue, setNewTagValue] = useState('');
 
   // Editor Refs & State
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +82,14 @@ const NotesPage: React.FC = () => {
       deleteNote(selectedNoteId);
       setSelectedNoteId(null);
     }
+  };
+
+  const handleAddTag = () => {
+    if (newTagValue.trim() && selectedNote) {
+      updateNote(selectedNote.id, { tags: [...selectedNote.tags, newTagValue.trim()] });
+    }
+    setIsAddingTag(false);
+    setNewTagValue('');
   };
 
   // --- Code Block Logic ---
@@ -174,12 +186,12 @@ const NotesPage: React.FC = () => {
   const charCount = selectedNote?.content.length || 0;
 
   return (
-    <div className="flex flex-col md:flex-row lg:grid lg:grid-cols-[300px_1fr] h-full gap-4 md:gap-6 transition-all duration-500">
+    <div className="flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] h-full gap-4 md:gap-6 transition-all duration-500">
       
       {/* --- LEFT SIDEBAR: DATA MATRIX --- */}
       <div 
         className={`flex flex-col gap-4 transition-all duration-500 ease-in-out min-w-0 ${
-          isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-[300px] lg:w-[300px] xl:w-1/4 opacity-100'
+          isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-auto opacity-100'
         }`}
       >
         {/* Search Matrix */}
@@ -383,15 +395,30 @@ const NotesPage: React.FC = () => {
                        updateNote(selectedNote.id, { tags: newTags });
                     }} />
                   ))}
-                  <button 
-                    className="text-[10px] px-2 py-0.5 border border-dashed border-gray-700 text-gray-600 hover:text-cyber-cyan hover:border-cyber-cyan transition-colors rounded-sm"
-                    onClick={() => {
-                       const tag = prompt("ADD TAG (e.g. WORK):");
-                       if (tag) updateNote(selectedNote.id, { tags: [...selectedNote.tags, tag] });
-                    }}
-                  >
-                    + TAG
-                  </button>
+                  {isAddingTag ? (
+                    <input
+                      autoFocus
+                      value={newTagValue}
+                      onChange={(e) => setNewTagValue(e.target.value)}
+                      onBlur={handleAddTag}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddTag();
+                        if (e.key === 'Escape') {
+                          setIsAddingTag(false);
+                          setNewTagValue('');
+                        }
+                      }}
+                      className="w-24 bg-black/50 border border-cyber-cyan text-[10px] px-2 py-0.5 font-mono text-cyber-cyan outline-none rounded-sm"
+                      placeholder="TAG NAME..."
+                    />
+                  ) : (
+                    <button 
+                      className="text-[10px] px-2 py-0.5 border border-dashed border-gray-700 text-gray-600 hover:text-cyber-cyan hover:border-cyber-cyan transition-colors rounded-sm"
+                      onClick={() => setIsAddingTag(true)}
+                    >
+                      + TAG
+                    </button>
+                  )}
                </div>
             </div>
 

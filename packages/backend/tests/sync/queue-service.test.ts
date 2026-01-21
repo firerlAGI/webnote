@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
-import { QueueService, QueuePriority, QueueOperationStatus } from '../../src/services/sync/QueueService'
+import { QueueService } from '../../src/services/sync/QueueService'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
@@ -206,7 +206,7 @@ describe('QueueService', () => {
   describe('markAsCompleted', () => {
     it('should mark operation as completed', async () => {
       // 入队操作
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -233,7 +233,7 @@ describe('QueueService', () => {
 
   describe('markAsFailed', () => {
     it('should mark operation as failed when max retries exceeded', async () => {
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -263,7 +263,7 @@ describe('QueueService', () => {
     })
 
     it('should re-queue operation when retries remain', async () => {
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -452,7 +452,7 @@ describe('QueueService', () => {
 
   describe('getPerformanceStats', () => {
     it('should return performance statistics', async () => {
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -498,7 +498,7 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const result = await queueService.processQueue(TEST_USER_ID, async (operation) => {
+      const result = await queueService.processQueue(TEST_USER_ID, async () => {
         // 模拟处理
         await new Promise(resolve => setTimeout(resolve, 10))
         return { success: true }
@@ -521,7 +521,7 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const result = await queueService.processQueue(TEST_USER_ID, async (operation) => {
+      const result = await queueService.processQueue(TEST_USER_ID, async () => {
         throw new Error('Processing error')
       })
 
@@ -554,7 +554,7 @@ describe('QueueService', () => {
     })
 
     it('should reset timed-out operations', async () => {
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -599,7 +599,7 @@ describe('QueueService', () => {
   describe('cleanupOldOperations', () => {
     it('should remove old completed and failed operations', async () => {
       // 添加并完成操作
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
@@ -631,7 +631,7 @@ describe('QueueService', () => {
     })
 
     it('should not remove recent operations', async () => {
-      const { queue_ids } = await queueService.enqueue({
+      await queueService.enqueue({
         user_id: TEST_USER_ID,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,

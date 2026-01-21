@@ -52,8 +52,9 @@ describe('WebSocket连接测试', () => {
 
       const connectionId = await syncService.handleConnection(mockSocket as any)
 
-      // 通过内部方法验证（实际实现中可能需要公开方法）
-      const connectedAt = new Date().toISOString()
+      // 通过内部属性验证
+      const connection = (syncService as any).activeConnections.get(connectionId)
+      const connectedAt = connection.connectedAt
 
       expect(connectedAt).toBeDefined()
       expect(connectedAt >= beforeConnect).toBe(true)
@@ -120,7 +121,7 @@ describe('WebSocket连接测试', () => {
 
       expect(logSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          connection_id,
+          connection_id: connectionId,
         }),
         'WebSocket connection closed'
       )
@@ -183,7 +184,7 @@ describe('WebSocket连接测试', () => {
 
     it('应该检测心跳超时并关闭连接', async () => {
       const mockSocket = new MockWebSocket('ws://localhost:3000/ws')
-      const closeSpy = vi.spyOn(mockSocket, 'close').mockImplementation(() => {})
+      vi.spyOn(mockSocket, 'close').mockImplementation(() => {})
 
       const connectionId = await syncService.handleConnection(mockSocket as any)
 
@@ -465,7 +466,7 @@ describe('WebSocket连接测试', () => {
         syncService.sendToClient(connectionId, {
           type: 'test',
         })
-      ).not.toThrow() // 应该静默失败或记录日志
+      ).resolves.toBeUndefined() // 应该静默失败或记录日志
     })
 
     it('应该记录所有错误', async () => {

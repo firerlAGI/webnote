@@ -17,7 +17,7 @@ const AppLayout: React.FC<{
   children: React.ReactNode; 
   user: User | UserExtended; 
   onLogout: () => void;
-}> = ({ children, user, onLogout }) => {
+}> = ({ children, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -46,18 +46,17 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 🔴 临时禁用鉴权 - 使用Mock用户
-    const mockUser: User = {
-      id: 1,
-      username: 'NET_RUNNER',
-      email: 'demo@webnote.com',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    setUser(mockUser);
-    setLoading(false);
+    const savedTheme = localStorage.getItem('theme') || 'cyan';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    const savedLanguage = localStorage.getItem('language');
+    if (savedLanguage === 'zh-CN' || savedLanguage === 'en' || savedLanguage === 'ja') {
+      document.documentElement.setAttribute('data-language', savedLanguage);
+      document.documentElement.lang = savedLanguage;
+    }
+  }, []);
 
-    /* 正常鉴权逻辑（已注释）
+  useEffect(() => {
+    // 正常鉴权逻辑
     const token = localStorage.getItem('token');
     const savedUser = localStorage.getItem('user');
     
@@ -78,12 +77,16 @@ const App: React.FC = () => {
         })
         .finally(() => setLoading(false));
     } else if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        console.error('Failed to parse saved user:', error);
+        localStorage.removeItem('user');
+      }
       setLoading(false);
     } else {
       setLoading(false);
     }
-    */
   }, []);
 
   const handleLogout = () => {
@@ -103,7 +106,7 @@ const App: React.FC = () => {
         ) : (
           <HashRouter>
             <Routes>
-              <Route path="/login" element={<AuthPageWrapper />} />
+              <Route path="/login" element={<AuthPage onAuthSuccess={(nextUser) => setUser(nextUser)} />} />
               <Route path="/*" element={<ProtectedRoutes user={user} onLogout={handleLogout} />} />
             </Routes>
           </HashRouter>
@@ -111,21 +114,6 @@ const App: React.FC = () => {
       </div>
     </DataProvider>
   );
-};
-
-// Wrapper to handle navigation prop in AuthPage
-const AuthPageWrapper = () => {
-  const navigate = useNavigate();
-  
-  const handleLoginSuccess = () => {
-    // 从localStorage获取用户信息并刷新
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      navigate('/');
-    }
-  };
-  
-  return <AuthPage />;
 };
 
 const ProtectedRoutes: React.FC<{ user: User | UserExtended | null; onLogout: () => void }> = ({ user, onLogout }) => {

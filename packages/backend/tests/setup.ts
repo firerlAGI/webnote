@@ -5,7 +5,8 @@
 
 import { PrismaClient } from '@prisma/client'
 import pino from 'pino'
-import { beforeEach, afterEach } from 'vitest'
+import { beforeEach, afterAll } from 'vitest'
+import bcrypt from 'bcrypt'
 
 // ============================================================================
 // 测试数据库客户端
@@ -73,20 +74,19 @@ export async function createTestUser(overrides: {
   username?: string
   password?: string
 } = {}) {
-  const email = overrides.email || `test_${Date.now()}@example.com`
-  const username = overrides.username || `testuser_${Date.now()}`
+  const timestamp = Date.now()
+  const random = Math.floor(Math.random() * 10000)
+  const email = overrides.email || `test_${timestamp}_${random}@example.com`
+  const username = overrides.username || `testuser_${timestamp}_${random}`
   const password = overrides.password || 'testpassword123'
 
-  const hashedPassword = await Bun.password.hash(password, {
-    algorithm: 'bcrypt',
-    cost: 10,
-  })
+  const hashedPassword = await bcrypt.hash(password, 10)
 
   const user = await prisma.user.create({
     data: {
       email,
       username,
-      password_hash: hashedPassword,
+      password: hashedPassword,
     },
   })
 
@@ -162,14 +162,14 @@ export async function createTestNote(userId: number, overrides: {
 export async function createTestReview(userId: number, overrides: {
   date?: Date
   content?: string
-  mood?: string
+  mood?: number
 } = {}) {
   return prisma.review.create({
     data: {
       user_id: userId,
       date: overrides.date || new Date(),
       content: overrides.content || `Test review content ${Date.now()}`,
-      mood: overrides.mood || 'good',
+      mood: overrides.mood || 5, // 默认5分 (1-10分制)
     },
   })
 }
@@ -214,7 +214,7 @@ export async function createTestData(userId: number, counts: {
     reviews.push(await createTestReview(userId, {
       date,
       content: `Test review ${i + 1}`,
-      mood: ['good', 'neutral', 'bad'][i % 3],
+      mood: [8, 5, 3][i % 3], // 8=好, 5=一般, 3=差
     }))
   }
 
@@ -275,14 +275,15 @@ export class MockWebSocket {
   static CLOSING = 2
   static CLOSED = 3
 
-  constructor(private url: string) {}
+  constructor(private _url: string) {}
 
   get CONNECTING() { return MockWebSocket.CONNECTING }
   get OPEN() { return MockWebSocket.OPEN }
   get CLOSING() { return MockWebSocket.CLOSING }
   get CLOSED() { return MockWebSocket.CLOSED }
 
-  send(data: string | ArrayBuffer): void {
+  send(_: string | ArrayBuffer): void {
+    void _;
     // 模拟发送消息
     if (this.readyState !== MockWebSocket.OPEN) {
       throw new Error('WebSocket is not open')

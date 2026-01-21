@@ -2,17 +2,10 @@ import React from 'react';
 import { X, Calendar, Brain, Activity, Smile, Edit, Trash2 } from 'lucide-react';
 import { CyberButton, CyberCard } from './CyberUI';
 import { StatRadar } from './SystemCharts';
+import type { Review } from '../types';
 
 interface ReviewDetailModalProps {
-  review?: {
-    id: number;
-    date: string;
-    content?: string;
-    mood?: number;
-    achievements?: string[];
-    improvements?: string[];
-    plans?: string[];
-  };
+  review?: Review;
   isOpen: boolean;
   onClose: () => void;
   onEdit: (id: number) => void;
@@ -24,12 +17,12 @@ const ReviewDetailModal: React.FC<ReviewDetailModalProps> = ({ review, isOpen, o
 
   // 构造雷达图数据
   const statsData = [
-    { subject: '精神', A: review.mood || 5, fullMark: 10 },
-    { subject: '体力', A: review.mood || 5, fullMark: 10 },
-    { subject: '专注', A: review.mood || 5, fullMark: 10 },
-    { subject: '创造', A: review.mood || 5, fullMark: 10 },
-    { subject: '情绪', A: review.mood || 5, fullMark: 10 },
-    { subject: '社交', A: review.mood || 5, fullMark: 10 },
+    { subject: '精神', A: review.spirit || review.mood || 5, fullMark: 10 },
+    { subject: '体力', A: review.energy || review.mood || 5, fullMark: 10 },
+    { subject: '专注', A: review.focus || review.mood || 5, fullMark: 10 },
+    { subject: '创造', A: review.creativity || review.mood || 5, fullMark: 10 },
+    { subject: '情绪', A: review.emotion || review.mood || 5, fullMark: 10 },
+    { subject: '社交', A: review.social || review.mood || 5, fullMark: 10 },
   ];
 
   // 情绪评分颜色
@@ -101,14 +94,14 @@ const ReviewDetailModal: React.FC<ReviewDetailModalProps> = ({ review, isOpen, o
                 <div className="p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2">
                   <Brain size={18} className="text-cyber-cyan" />
                   <span className="text-lg font-bold font-display text-white">
-                    {review.mood || 0}
+                    {review.focus_score || (review.focus ? review.focus * 10 : 0)}%
                   </span>
                   <span className="text-[9px] text-gray-600 font-mono">FOCUS</span>
                 </div>
                 <div className="p-3 bg-cyber-panel border border-gray-800 rounded flex flex-col items-center justify-center gap-2">
                   <Activity size={18} className="text-cyber-pink" />
                   <span className="text-lg font-bold font-display text-white">
-                    {review.mood || 0}
+                    {review.energy_score || (review.energy ? review.energy * 10 : 0)}%
                   </span>
                   <span className="text-[9px] text-gray-600 font-mono">ENERGY</span>
                 </div>

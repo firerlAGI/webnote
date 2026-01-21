@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cpu, ChevronRight, AlertCircle } from 'lucide-react';
+import { authAPI } from '../api';
+import { User, UserExtended } from '../types';
 
-const AuthPage: React.FC = () => {
+type AuthPageProps = {
+  onAuthSuccess?: (user: User | UserExtended) => void;
+};
+
+const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,17 +38,50 @@ const AuthPage: React.FC = () => {
     setIsLoading(true);
     setError('');
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email && password.length >= 6) {
-        localStorage.setItem('token', 'mock-jwt-token');
-        localStorage.setItem('user', JSON.stringify({ email, id: 'user_001' }));
-        navigate('/dashboard');
+    try {
+      if (mode === 'register') {
+        // 注册模式
+        if (!username) {
+          setError('用户名不能为空');
+          setIsLoading(false);
+          return;
+        }
+        
+        const response = await authAPI.register(username, email, password);
+        
+        if (response.data.success) {
+          // 注册成功，保存 token 和用户信息
+          localStorage.setItem('token', response.data.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
+          onAuthSuccess?.(response.data.data.user);
+          navigate('/');
+        } else {
+          setError(response.data.error || '注册失败');
+        }
       } else {
-        setError('访问凭证无效或密码过短');
+        // 登录模式
+        const response = await authAPI.login(email, password);
+        
+        if (response.data.success) {
+          // 登录成功，保存 token 和用户信息
+          localStorage.setItem('token', response.data.data.token);
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
+          onAuthSuccess?.(response.data.data.user);
+          navigate('/');
+        } else {
+          setError(response.data.error || '登录失败');
+        }
       }
+    } catch (err: any) {
+      console.error('Auth error:', err);
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError(mode === 'register' ? '注册失败，请稍后重试' : '登录失败，请检查邮箱和密码');
+      }
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -107,6 +147,25 @@ const AuthPage: React.FC = () => {
         {/* Form */}
         <form className="space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {mode === 'register' && (
+              <div>
+                <label className="block text-cyber-cyan text-xs font-mono mb-2 uppercase tracking-wider">
+                  {'> '}USERNAME
+                </label>
+                <div className="relative group">
+                  <div className="absolute -inset-[1px] bg-gradient-to-r from-cyber-cyan/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded blur-sm"></div>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="ENTER_USERNAME"
+                    className="relative w-full bg-black border border-gray-800 focus:border-cyber-cyan text-gray-100 px-4 py-3 font-mono text-sm outline-none rounded transition-all"
+                    required={mode === 'register'}
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
                 <label className="block text-cyber-cyan text-xs font-mono mb-2 uppercase tracking-wider">
                   {'> '}EMAIL_ADDRESS

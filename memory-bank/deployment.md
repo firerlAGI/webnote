@@ -6,23 +6,26 @@
 
 - **IP 地址**: 120.26.50.152
 - **SSH 用户**: root
-- **SSH 密码**: (在本地密码管理器中，安全起见不记录在此文件中)
+- **SSH 密码**: `REDACTED_PASSWORD`
 - **操作系统**: Ubuntu/Debian
 - **部署路径**: `/var/www/webnote`
 
 ### 数据库配置
 
-- **数据库名**: webnote
-- **数据库用户**: webnote_user
-- **数据库密码**: (在本地密码管理器中，安全起见不记录在此文件中)
-- **端口**: 5432
-- **连接地址**: localhost:5432
+- **数据库类型**: SQLite
+- **数据库文件**: `/var/www/webnote/backend/dev.db`
+- **连接字符串**: `DATABASE_URL=file:./dev.db`
+- **注意**: SQLite 不需要密码认证
+
+### JWT 配置
+
+- **JWT_SECRET**: `webnote-production-secret-key-change-in-production-2024`
+- **过期时间**: 7d
 
 ### 应用端口
 
 - **前端**: 80 (HTTP), 443 (HTTPS)
 - **后端 API**: 3000
-- **PostgreSQL**: 5432
 
 ## 快速部署
 
@@ -69,11 +72,11 @@
 ### 关键配置项
 
 ```bash
-# 数据库
-DATABASE_URL="postgresql://webnote_user:密码@localhost:5432/webnote"
+# 数据库（SQLite）
+DATABASE_URL="file:./dev.db"
 
 # JWT
-JWT_SECRET="生成的密钥"
+JWT_SECRET="webnote-production-secret-key-change-in-production-2024"
 JWT_EXPIRES_IN="7d"
 
 # 服务器
@@ -82,7 +85,7 @@ NODE_ENV=production
 HOST="0.0.0.0"
 
 # CORS
-ALLOWED_ORIGINS="http://120.26.50.152,https://120.26.50.152"
+ALLOWED_ORIGINS="http://120.26.50.152,http://localhost:5173,http://localhost:3000"
 
 # 阿里云 OSS（如果使用）
 OSS_ACCESS_KEY_ID="your-key"
@@ -120,9 +123,6 @@ ssh root@120.26.50.152 "sudo systemctl status nginx"
 ssh root@120.26.50.152 "sudo systemctl restart nginx"
 ssh root@120.26.50.152 "sudo nginx -t"
 
-# PostgreSQL 服务
-ssh root@120.26.50.152 "sudo systemctl status postgresql"
-ssh root@120.26.50.152 "sudo systemctl restart postgresql"
 ```
 
 ### 查看日志
@@ -136,24 +136,25 @@ ssh root@120.26.50.152 "tail -f /var/www/webnote/backend/logs/err.log"
 ssh root@120.26.50.152 "tail -f /var/log/nginx/access.log"
 ssh root@120.26.50.152 "tail -f /var/log/nginx/error.log"
 
-# PostgreSQL 日志
-ssh root@120.26.50.152 "tail -f /var/log/postgresql/postgresql-14-main.log"
 ```
 
-### 数据库操作
+### 数据库操作（SQLite）
 
 ```bash
 # 连接数据库
-ssh root@120.26.50.152 "sudo -u postgres psql -d webnote"
+ssh root@120.26.50.152 "cd /var/www/webnote/backend && sqlite3 dev.db"
 
 # 查看所有表
-\dt
+.tables
 
-# 查看用户
+# 查看表结构
+.schema users
+
+# 查看用户数据
 SELECT * FROM users;
 
 # 退出
-\q
+.quit
 ```
 
 ## 验证部署
@@ -168,7 +169,7 @@ curl http://120.26.50.152/api/health
 curl http://120.26.50.152
 
 # 检查端口
-ssh root@120.26.50.152 "sudo netstat -tulpn | grep -E ':(3000|80|443|5432)'"
+ssh root@120.26.50.152 "sudo netstat -tulpn | grep -E ':(3000|80|443)'"
 ```
 
 ### 功能测试
@@ -196,21 +197,18 @@ curl -X POST http://120.26.50.152/api/auth/login \
 
 - **配置文件**: `/var/www/webnote/backend/ecosystem.config.js`
 
-### 数据库配置
-
-- **PostgreSQL 配置**: `/etc/postgresql/14/main/postgresql.conf`
-- **访问控制**: `/etc/postgresql/14/main/pg_hba.conf`
 
 ## 备份
 
-### 数据库备份
+### 数据库备份（SQLite）
 
 ```bash
 # 创建备份
 ssh root@120.26.50.152 << 'ENDSSH'
 mkdir -p /var/backups/webnote
 BACKUP_DATE=$(date +%Y%m%d_%H%M%S)
-pg_dump -h localhost -U webnote_user -d webnote | gzip > /var/backups/webnote/db_$BACKUP_DATE.sql.gz
+cp /var/www/webnote/backend/dev.db /var/backups/webnote/db_$BACKUP_DATE.db
+gzip /var/backups/webnote/db_$BACKUP_DATE.db
 ENDSSH
 
 # 列出备份
@@ -228,11 +226,11 @@ tar -czf /var/backups/webnote/app_$BACKUP_DATE.tar.gz -C /var/www webnote --excl
 ENDSSH
 ```
 
-### 恢复数据库
+### 恢复数据库（SQLite）
 
 ```bash
 ssh root@120.26.50.152 << 'ENDSSH'
-gunzip -c /var/backups/webnote/db_20240114_120000.sql.gz | sudo -u postgres psql -d webnote
+gunzip -c /var/backups/webnote/db_20240114_120000.db.gz > /var/www/webnote/backend/dev.db
 ENDSSH
 ```
 
@@ -254,17 +252,17 @@ ssh root@120.26.50.152 "pm2 logs webnote-backend --err"
 ssh root@120.26.50.152 "cd /var/www/webnote/backend && node dist/server.js"
 ```
 
-### 数据库连接失败
+### 数据库连接失败（SQLite）
 
 ```bash
+# 检查数据库文件是否存在
+ssh root@120.26.50.152 "ls -lh /var/www/webnote/backend/dev.db"
+
+# 检查数据库文件权限
+ssh root@120.26.50.152 "ls -l /var/www/webnote/backend/dev.db"
+
 # 测试数据库连接
-ssh root@120.26.50.152 "sudo -u postgres psql -h localhost -U webnote_user -d webnote"
-
-# 检查 PostgreSQL 状态
-ssh root@120.26.50.152 "sudo systemctl status postgresql"
-
-# 重启 PostgreSQL
-ssh root@120.26.50.152 "sudo systemctl restart postgresql"
+ssh root@120.26.50.152 "cd /var/www/webnote/backend && sqlite3 dev.db '.tables'"
 ```
 
 ### Nginx 502 错误

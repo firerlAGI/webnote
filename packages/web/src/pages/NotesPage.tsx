@@ -4,7 +4,7 @@ import { CyberCard, CyberTextArea, CyberTag } from '../components/CyberUI';
 import { Search, Plus, Trash2, Pin, Folder, Eye, Edit3, Maximize2, Minimize2, Cloud, Hash, ChevronRight, FileCode, Code } from 'lucide-react';
 
 const NotesPage: React.FC = () => {
-  const { notes, folders, addNote, updateNote, deleteNote, updateFolder } = useData();
+  const { notes, folders, addNote, updateNote, deleteNote, updateFolder, isLoading, error } = useData();
   const [selectedNoteId, setSelectedNoteId] = useState<number | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null);
   const [editingFolderId, setEditingFolderId] = useState<number | null>(null);
@@ -184,6 +184,22 @@ const NotesPage: React.FC = () => {
 
   const wordCount = selectedNote?.content.trim().split(/\s+/).filter(w => w.length > 0).length || 0;
   const charCount = selectedNote?.content.length || 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-full text-cyber-cyan font-mono animate-pulse">
+        LOADING_DATA_STREAM...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full text-red-500 font-mono">
+        SYSTEM_ERROR: {error}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] md:grid-rows-[1fr] h-full gap-4 md:gap-6 transition-all duration-500 md:overflow-hidden">

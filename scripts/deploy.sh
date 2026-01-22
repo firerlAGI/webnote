@@ -14,6 +14,7 @@ NC='\033[0m' # No Color
 
 # 配置
 ENV=${1:-dev}
+ENABLE_HTTPS=${2:-false}
 SERVER="root@120.26.50.152"
 REMOTE_DIR="/var/www/webnote"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -100,7 +101,17 @@ cp -r "$DEPLOY_DIR/web" "$REMOTE_DIR/web"
 
 echo "创建环境变量文件..."
 cd "$REMOTE_DIR/backend"
-cat > .env << 'ENVEOF'
+if [ "\$ENABLE_HTTPS" = "true" ]; then
+    cat > .env << 'ENVEOF'
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+DATABASE_URL=file:./dev.db
+JWT_SECRET=webnote-production-secret-key-change-in-production-2024
+ALLOWED_ORIGINS=https://120.26.50.152,http://120.26.50.152,http://localhost:5173,http://localhost:3000
+ENVEOF
+else
+    cat > .env << 'ENVEOF'
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
@@ -108,6 +119,7 @@ DATABASE_URL=file:./dev.db
 JWT_SECRET=webnote-production-secret-key-change-in-production-2024
 ALLOWED_ORIGINS=http://120.26.50.152,http://localhost:5173,http://localhost:3000
 ENVEOF
+fi
 
 echo "安装后端依赖..."
 npm install --production --legacy-peer-deps

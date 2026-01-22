@@ -64,6 +64,13 @@ cp -r packages/backend/prisma "$TEMP_DIR/backend"
 cp packages/backend/package.json "$TEMP_DIR/backend"
 cp -r packages/backend/uploads "$TEMP_DIR/backend" 2>/dev/null || mkdir -p "$TEMP_DIR/backend/uploads"
 
+echo "  - 复制共享包..."
+cp -r packages/shared/dist "$TEMP_DIR/backend/shared"
+cp packages/shared/package.json "$TEMP_DIR/backend/shared"
+
+echo "  - 创建生产环境 package.json..."
+cp scripts/production-backend-package.json "$TEMP_DIR/backend/package.json"
+
 echo "  - 复制前端文件..."
 cp -r packages/web/dist "$TEMP_DIR/web"
 
@@ -91,8 +98,24 @@ rm -rf "$REMOTE_DIR/web"
 cp -r "$DEPLOY_DIR/backend" "$REMOTE_DIR/backend"
 cp -r "$DEPLOY_DIR/web" "$REMOTE_DIR/web"
 
-echo "运行数据库迁移..."
+echo "创建环境变量文件..."
 cd "$REMOTE_DIR/backend"
+cat > .env << 'ENVEOF'
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+DATABASE_URL=file:./dev.db
+JWT_SECRET=webnote-production-secret-key-change-in-production-2024
+ALLOWED_ORIGINS=http://120.26.50.152,http://localhost:5173,http://localhost:3000
+ENVEOF
+
+echo "安装后端依赖..."
+npm install --production --legacy-peer-deps
+
+echo "生成 Prisma Client..."
+npx prisma generate
+
+echo "运行数据库迁移..."
 npx prisma migrate deploy
 
 echo "启动服务..."
@@ -229,10 +252,16 @@ echo -e "${YELLOW}[6/7] 健康检查...${NC}"
 sleep 5
 
 echo "  - 检查后端API..."
-if curl -sf http://120.26.50.152/api/health > /dev/null; then
-    echo -e "${GREEN}  ✓ 后端API正常${NC}"
+if curl -sf http://120.26.50.152:3000/health > /dev/null; then
+    echo -e "${GREEN}  ✓ 后端API正常 (端口 3000)${NC}"
 else
-    echo -e "${RED}  ✗ 后端API异常${NC}"
+    echo -e "${YELLOW}  ⚠ 后端API端口 3000 无响应，尝试通过 Nginx 代理...${NC}"
+    sleep 3
+    if curl -sf http://120.26.50.152/api/health > /dev/null; then
+        echo -e "${GREEN}  ✓ 后端API正常 (Nginx 代理)${NC}"
+    else
+        echo -e "${RED}  ✗ 后端API异常${NC}"
+    fi
 fi
 
 echo "  - 检查前端页面..."

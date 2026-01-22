@@ -58,11 +58,44 @@ app.register(cors, {
   maxAge: 86400 // 24 hours
 })
 
+// Get server configuration
+const PORT = process.env.PORT || 3000
+const HOST = process.env.HOST || '0.0.0.0'
+
 // Ensure JWT secret is set
 if (!process.env.JWT_SECRET) {
-  app.log.error('JWT_SECRET environment variable is not set')
+  app.log.error('========================================')
+  app.log.error('ERROR: JWT_SECRET environment variable is not set')
+  app.log.error('========================================')
+  app.log.error('Please set JWT_SECRET in your .env file')
+  app.log.error('Example: JWT_SECRET=your-secret-key-here')
+  app.log.error('For production, use a strong random string (at least 32 characters)')
+  app.log.error('You can generate one with: openssl rand -base64 32')
+  app.log.error('========================================')
   process.exit(1)
 }
+
+// Verify database URL
+if (!process.env.DATABASE_URL) {
+  app.log.error('========================================')
+  app.log.error('ERROR: DATABASE_URL environment variable is not set')
+  app.log.error('========================================')
+  app.log.error('Please set DATABASE_URL in your .env file')
+  app.log.error('Examples:')
+  app.log.error('  SQLite: DATABASE_URL=file:./dev.db')
+  app.log.error('  PostgreSQL: DATABASE_URL=postgresql://user:password@localhost:5432/mydb')
+  app.log.error('========================================')
+  process.exit(1)
+}
+
+// Log important configuration (without sensitive data)
+app.log.info('Server configuration:')
+app.log.info(`  - NODE_ENV: ${process.env.NODE_ENV || 'development'}`)
+app.log.info(`  - PORT: ${PORT}`)
+app.log.info(`  - HOST: ${HOST}`)
+app.log.info(`  - JWT_SECRET: ${process.env.JWT_SECRET ? '✓ Set' : '✗ Not set'}`)
+app.log.info(`  - DATABASE_URL: ${process.env.DATABASE_URL ? '✓ Set' : '✗ Not set'}`)
+app.log.info(`  - ALLOWED_ORIGINS: ${process.env.ALLOWED_ORIGINS || 'Not set'}`)
 
 app.register(jwt, {
   secret: process.env.JWT_SECRET
@@ -166,10 +199,6 @@ const gracefulShutdown = async (signal: string) => {
 // Listen for shutdown signals
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
 process.on('SIGINT', () => gracefulShutdown('SIGINT'))
-
-// Start server
-const PORT = process.env.PORT || 3000
-const HOST = process.env.HOST || '0.0.0.0'
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen({ port: Number(PORT), host: HOST }, (err) => {

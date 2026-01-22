@@ -186,11 +186,11 @@ const NotesPage: React.FC = () => {
   const charCount = selectedNote?.content.length || 0;
 
   return (
-    <div className="flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] h-full gap-4 md:gap-6 transition-all duration-500">
+    <div className="flex flex-col md:grid md:grid-cols-[280px_1fr] lg:grid-cols-[300px_1fr] md:grid-rows-[1fr] h-full gap-4 md:gap-6 transition-all duration-500 md:overflow-hidden">
       
       {/* --- LEFT SIDEBAR: DATA MATRIX --- */}
       <div 
-        className={`flex flex-col gap-4 transition-all duration-500 ease-in-out min-w-0 ${
+        className={`flex flex-col gap-4 transition-all duration-500 ease-in-out min-w-0 md:overflow-hidden ${
           isFocusMode ? 'w-0 opacity-0 -ml-6 overflow-hidden' : 'w-full md:w-auto opacity-100'
         }`}
       >
@@ -257,7 +257,7 @@ const NotesPage: React.FC = () => {
         </div>
 
         {/* The List */}
-        <CyberCard className="flex-1 overflow-hidden flex flex-col" noPadding variant="flat">
+        <CyberCard className="h-[40vh] md:h-auto flex-1 overflow-hidden flex flex-col" noPadding variant="flat">
           <div className="flex flex-col h-full">
           <div className="p-2 border-b border-gray-800 bg-black/20">
              <button 

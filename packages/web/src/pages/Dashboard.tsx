@@ -61,7 +61,6 @@ const Dashboard: React.FC = () => {
       await notesAPI.create({
         title: `速记_${new Date().toLocaleTimeString()}`,
         content: inputText,
-        folder_id: 1, // Using default folder ID 1
         is_pinned: false
       });
 
@@ -70,7 +69,6 @@ const Dashboard: React.FC = () => {
         user_id: 1, 
         title: `速记_${new Date().toLocaleTimeString()}`,
         content: inputText,
-        folderId: 1,
         isPinned: false,
         tags: ['Dashboard', 'Quick']
       });

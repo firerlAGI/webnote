@@ -89,6 +89,6 @@ deploy/backend/.env.production
 scripts/.secrets
 
 # Sensitive directories and files
-memory-bank/
+memory-bank/archived/
 deploy-with-password.sh
 deploy-auto.sh

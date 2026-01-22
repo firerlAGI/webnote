@@ -437,6 +437,40 @@ project-docs/
 
 ---
 
+## 核心文档索引
+
+### Memory-Bank 文档结构
+
+```
+memory-bank/
+├── projectbrief.md          # 项目基础文档
+├── productContext.md        # 产品上下文
+├── systemPatterns.md        # 系统架构与设计模式
+├── techContext.md           # 技术栈与配置
+├── activeContext.md         # 当前工作重点（本文件）
+├── deployment.md            # 生产服务器部署指南 ⭐ NEW
+├── progress.md             # 项目进度追踪
+└── archived/               # 归档文档
+```
+
+### 快速查找指南
+
+| 需求 | 文档位置 |
+|------|---------|
+| 服务器配置和密码 | `deployment.md` |
+| 部署命令和脚本 | `deployment.md` |
+| 系统架构设计 | `systemPatterns.md` |
+| 技术栈和配置 | `techContext.md` |
+| 当前开发重点 | `activeContext.md` (本文件) |
+| 项目进度 | `progress.md` |
+| 产品目标 | `productContext.md` |
+
+⚠️ **重要提醒**: 
+- 所有敏感信息（密码、密钥）请查看 `memory-bank/deployment.md`
+- 部署相关操作请参考 `memory-bank/deployment.md` 或 `scripts/README_DEPLOY.md`
+
+---
+
 ## 重要模式
 
 ### Git 提交规范

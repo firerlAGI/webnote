@@ -68,12 +68,12 @@ const NotesPage: React.FC = () => {
   const handleCreateNew = () => {
     addNote({
       title: 'UNTITLED_PROTOCOL',
-      content: '',
-      folder_id: selectedFolderId || 1,
+      content: '// NEW ENTRY',
+      folderId: selectedFolderId || undefined,
       isPinned: false,
       tags: ['DRAFT'],
       user_id: 1
-    });
+    } as any);
   };
 
   const handleDelete = () => {

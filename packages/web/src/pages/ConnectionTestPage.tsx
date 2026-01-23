@@ -21,6 +21,32 @@ export default function ConnectionTestPage() {
     setTestResults([]);
   };
 
+  const authenticatedRequest = async (endpoint: string, method: string = 'GET', body?: any) => {
+    const token = localStorage.getItem('test_token');
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Ensure apiUrl doesn't end with slash if endpoint starts with one
+    const baseUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
+    const url = `${baseUrl}${endpoint}`;
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return data;
+  };
+
   const runTests = async () => {
     setIsRunning(true);
     resetTests();
@@ -70,62 +96,62 @@ export default function ConnectionTestPage() {
     // Test 4: Get User Info
     await runTest('获取用户信息', async () => {
       const start = Date.now();
-      const response = await userAPI.getMe();
+      const data = await authenticatedRequest('/user/me');
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        return { success: true, message: `用户: ${response.data.data.username}, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        return { success: true, message: `用户: ${data.data.username}, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '获取用户信息失败');
+      throw new Error(data.error || '获取用户信息失败');
     });
 
     // Test 5: Create Folder
     await runTest('创建文件夹', async () => {
       const start = Date.now();
-      const response = await foldersAPI.create('测试文件夹');
+      const data = await authenticatedRequest('/folders', 'POST', { name: '测试文件夹' });
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        localStorage.setItem('test_folder_id', response.data.data.id.toString());
-        return { success: true, message: `文件夹ID: ${response.data.data.id}, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        localStorage.setItem('test_folder_id', data.data.id.toString());
+        return { success: true, message: `文件夹ID: ${data.data.id}, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '创建文件夹失败');
+      throw new Error(data.error || '创建文件夹失败');
     });
 
     // Test 6: Create Note
     await runTest('创建笔记', async () => {
       const start = Date.now();
-      const response = await notesAPI.create({
+      const data = await authenticatedRequest('/notes', 'POST', {
         title: '测试笔记',
         content: '这是一条测试笔记内容',
         is_pinned: true
       });
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        localStorage.setItem('test_note_id', response.data.data.id.toString());
-        return { success: true, message: `笔记ID: ${response.data.data.id}, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        localStorage.setItem('test_note_id', data.data.id.toString());
+        return { success: true, message: `笔记ID: ${data.data.id}, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '创建笔记失败');
+      throw new Error(data.error || '创建笔记失败');
     });
 
     // Test 7: Get Notes
     await runTest('获取笔记列表', async () => {
       const start = Date.now();
-      const response = await notesAPI.getAll();
+      const data = await authenticatedRequest('/notes');
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        const { notes, pagination } = response.data.data;
+      if (data.success) {
+        const { notes, pagination } = data.data;
         return { success: true, message: `共 ${pagination.total} 条笔记, 当前页 ${notes.length} 条, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '获取笔记失败');
+      throw new Error(data.error || '获取笔记失败');
     });
 
     // Test 8: Create Review
     await runTest('创建复盘', async () => {
       const start = Date.now();
-      const response = await reviewsAPI.create({
+      const data = await authenticatedRequest('/reviews/detailed', 'POST', {
         date: new Date().toISOString().split('T')[0],
         content: '这是一条测试复盘内容',
         mood: 4,
@@ -135,35 +161,35 @@ export default function ConnectionTestPage() {
       });
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        localStorage.setItem('test_review_id', response.data.data.id.toString());
-        return { success: true, message: `复盘ID: ${response.data.data.id}, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        localStorage.setItem('test_review_id', data.data.id.toString());
+        return { success: true, message: `复盘ID: ${data.data.id}, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '创建复盘失败');
+      throw new Error(data.error || '创建复盘失败');
     });
 
     // Test 9: Create Backup
     await runTest('创建备份', async () => {
       const start = Date.now();
-      const response = await backupAPI.create('manual');
+      const data = await authenticatedRequest('/backups', 'POST', { type: 'manual' });
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        return { success: true, message: `备份ID: ${response.data.data.id}, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        return { success: true, message: `备份ID: ${data.data.id}, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '创建备份失败');
+      throw new Error(data.error || '创建备份失败');
     });
 
     // Test 10: Get Backups
     await runTest('获取备份列表', async () => {
       const start = Date.now();
-      const response = await backupAPI.getAll();
+      const data = await authenticatedRequest('/backups');
       const duration = Date.now() - start;
       
-      if (response.data.success) {
-        return { success: true, message: `共 ${response.data.data.length} 个备份, 耗时: ${duration}ms`, duration };
+      if (data.success) {
+        return { success: true, message: `共 ${data.data.length} 个备份, 耗时: ${duration}ms`, duration };
       }
-      throw new Error(response.data.error || '获取备份失败');
+      throw new Error(data.error || '获取备份失败');
     });
 
     setIsRunning(false);

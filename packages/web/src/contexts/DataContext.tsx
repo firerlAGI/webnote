@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { NoteExtended, DailyReview } from '../types';
-import { MOCK_NOTES, MOCK_REVIEWS, MOCK_FOLDERS, MockFolder } from '../constants';
+import { MockFolder } from '../constants';
 import { notesAPI, foldersAPI, reviewsAPI } from '../api';
 
 interface DataContextType {
@@ -60,6 +60,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ]);
 
       if (notesRes.status === 'fulfilled') {
+        console.log('Notes API Response:', notesRes.value.data);
         // Handle pagination structure if necessary, assume data.data.notes for now based on API response
         const notesData = notesRes.value.data.data.notes || [];
         setNotes(notesData.map(transformNote));

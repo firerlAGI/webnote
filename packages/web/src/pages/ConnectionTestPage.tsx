@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { authAPI, userAPI, notesAPI, foldersAPI, reviewsAPI, backupAPI } from '../api';
+import { authAPI } from '../api';
 
 interface TestResult {
   name: string;

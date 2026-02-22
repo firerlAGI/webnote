@@ -41,7 +41,7 @@ const AppLayout: React.FC<{
 };
 
 const App: React.FC = () => {
-  const [booted, setBooted] = useState(false);
+  const [booted, setBooted] = useState(true); // Skip boot sequence
   const [user, setUser] = useState<User | UserExtended | null>(null);
   const [loading, setLoading] = useState(true);
 

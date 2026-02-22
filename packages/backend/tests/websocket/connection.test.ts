@@ -5,7 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { SyncService } from '../../src/services/sync/SyncService'
-import { prisma, logger, createTestUser, delay, MockWebSocket } from '../setup'
+import { prisma, logger, createTestUser, delay, MockWebSocket, cleanupDatabase } from '../setup'
 
 // ============================================================================
 // 测试套件
@@ -13,9 +13,13 @@ import { prisma, logger, createTestUser, delay, MockWebSocket } from '../setup'
 
 describe('WebSocket连接测试', () => {
   let syncService: SyncService
+  let testUserId: number
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await cleanupDatabase()
     syncService = new SyncService(prisma, logger)
+    const { user } = await createTestUser()
+    testUserId = user.id
   })
 
   afterEach(async () => {
@@ -54,7 +58,7 @@ describe('WebSocket连接测试', () => {
 
       // 通过内部属性验证
       const connection = (syncService as any).activeConnections.get(connectionId)
-      const connectedAt = connection.connectedAt
+      const connectedAt = connection.connected_at
 
       expect(connectedAt).toBeDefined()
       expect(connectedAt >= beforeConnect).toBe(true)
@@ -102,7 +106,7 @@ describe('WebSocket连接测试', () => {
       // 认证后启动心跳
       await syncService.handleMessage(connectionId, {
         type: 'auth',
-        user_id: 1,
+        user_id: testUserId,
         client_id: 'test_client',
       })
 
@@ -170,7 +174,7 @@ describe('WebSocket连接测试', () => {
       // 认证后启动心跳
       await syncService.handleMessage(connectionId, {
         type: 'auth',
-        user_id: 1,
+        user_id: testUserId,
         client_id: 'test_client',
       })
 
@@ -188,10 +192,9 @@ describe('WebSocket连接测试', () => {
 
       const connectionId = await syncService.handleConnection(mockSocket as any)
 
-      // 认证后启动心跳
       await syncService.handleMessage(connectionId, {
         type: 'auth',
-        user_id: 1,
+        user_id: testUserId,
         client_id: 'test_client',
       })
 
@@ -205,7 +208,7 @@ describe('WebSocket连接测试', () => {
       const connectionId2 = await syncServiceWithShortTimeout.handleConnection(mockSocket as any)
       await syncServiceWithShortTimeout.handleMessage(connectionId2, {
         type: 'auth',
-        user_id: 1,
+        user_id: testUserId,
         client_id: 'test_client',
       })
 
@@ -405,20 +408,30 @@ describe('WebSocket连接测试', () => {
     })
 
     it('应该广播消息到用户的所有连接', async () => {
+      // 创建允许每用户多个连接的 SyncService 实例
+      const multiConnectionService = new SyncService(prisma, logger, {
+        maxConnectionsPerUser: 5,
+        maxConnectionsPerDevice: 5,
+      })
+
       const { user } = await createTestUser()
       const socket1 = new MockWebSocket('ws://localhost:3000/ws')
       const socket2 = new MockWebSocket('ws://localhost:3000/ws')
 
-      const connectionId1 = await syncService.handleConnection(socket1 as any)
-      const connectionId2 = await syncService.handleConnection(socket2 as any)
+      // 模拟 WebSocket 连接已打开
+      socket1.simulateOpen()
+      socket2.simulateOpen()
 
-      await syncService.handleMessage(connectionId1, {
+      const connectionId1 = await multiConnectionService.handleConnection(socket1 as any)
+      const connectionId2 = await multiConnectionService.handleConnection(socket2 as any)
+
+      await multiConnectionService.handleMessage(connectionId1, {
         type: 'auth',
         user_id: user.id,
         client_id: 'client_1',
       })
 
-      await syncService.handleMessage(connectionId2, {
+      await multiConnectionService.handleMessage(connectionId2, {
         type: 'auth',
         user_id: user.id,
         client_id: 'client_2',
@@ -429,15 +442,15 @@ describe('WebSocket连接测试', () => {
         data: 'test data',
       }
 
-      await syncService.broadcastToUser(user.id, message)
-
       // 验证消息发送（通过sendToClient spy）
-      const sendSpy = vi.spyOn(syncService, 'sendToClient')
+      const sendSpy = vi.spyOn(multiConnectionService, 'sendToClient')
 
-      await syncService.broadcastToUser(user.id, message)
+      await multiConnectionService.broadcastToUser(user.id, message)
 
-      // 应该被调用至少两次（两个连接）
-      expect(sendSpy).toHaveBeenCalled()
+      // 应该被调用两次（两个连接）
+      expect(sendSpy).toHaveBeenCalledTimes(2)
+
+      await multiConnectionService.shutdown()
     })
   })
 

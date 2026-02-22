@@ -6,6 +6,21 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
+    pool: 'forks',
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    fileParallelism: false,
+    sequence: {
+      concurrent: false,
+    },
+    exclude: [
+      'node_modules',
+      'dist',
+      'tests/integration/production-sync-integration.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

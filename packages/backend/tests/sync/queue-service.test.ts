@@ -3,17 +3,14 @@
  * 测试队列服务的各项功能
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { QueueService } from '../../src/services/sync/QueueService'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma, createTestUser, cleanupDatabase } from '../setup'
 
 // ============================================================================
 // 测试配置
 // ============================================================================
 
-const TEST_USER_ID = 999999
 const TEST_DEVICE_ID = 'test-device-001'
 const TEST_CLIENT_ID = 'test-client-001'
 
@@ -23,9 +20,13 @@ const TEST_CLIENT_ID = 'test-client-001'
 
 describe('QueueService', () => {
   let queueService: QueueService
+  let testUserId: number
 
-  beforeAll(async () => {
-    // 创建队列服务实例（使用最小配置）
+  beforeEach(async () => {
+    await cleanupDatabase()
+    const user = await createTestUser()
+    testUserId = user.user.id
+
     queueService = new QueueService(prisma, console as any, {
       maxQueueSize: 100,
       defaultMaxRetries: 3,
@@ -38,17 +39,8 @@ describe('QueueService', () => {
     })
   })
 
-  afterAll(async () => {
+  afterEach(async () => {
     await queueService.shutdown()
-    await prisma.$disconnect()
-  })
-
-  beforeEach(async () => {
-    // 清理测试数据
-    await prisma.$executeRaw`
-      DELETE FROM "SyncQueue"
-      WHERE user_id = ${TEST_USER_ID}
-    `
   })
 
   // ============================================================================
@@ -58,7 +50,7 @@ describe('QueueService', () => {
   describe('enqueue', () => {
     it('should successfully enqueue operations', async () => {
       const result = await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -90,7 +82,7 @@ describe('QueueService', () => {
 
       // 填充队列
       await largeService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -102,7 +94,7 @@ describe('QueueService', () => {
 
       // 尝试添加更多操作
       const result = await largeService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -119,7 +111,7 @@ describe('QueueService', () => {
 
     it('should handle multiple operations in a single enqueue', async () => {
       const result = await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -139,7 +131,7 @@ describe('QueueService', () => {
     it('should return operations in priority order (high first)', async () => {
       // 添加不同优先级的操作
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Low Priority' } }],
@@ -149,7 +141,7 @@ describe('QueueService', () => {
       await new Promise(resolve => setTimeout(resolve, 10)) // 确保时间差
 
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'High Priority' } }],
@@ -157,7 +149,7 @@ describe('QueueService', () => {
       })
 
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Medium Priority' } }],
@@ -165,7 +157,7 @@ describe('QueueService', () => {
       })
 
       // 取出操作
-      const operations = await queueService.dequeue(TEST_USER_ID, 3)
+      const operations = await queueService.dequeue(testUserId, 3)
 
       expect(operations).toHaveLength(3)
       expect(operations[0].priority).toBe('high')
@@ -179,14 +171,14 @@ describe('QueueService', () => {
     })
 
     it('should return empty array when queue is empty', async () => {
-      const operations = await queueService.dequeue(TEST_USER_ID, 5)
+      const operations = await queueService.dequeue(testUserId, 5)
       expect(operations).toHaveLength(0)
     })
 
     it('should respect the limit parameter', async () => {
       // 添加多个操作
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: Array.from({ length: 10 }, (_, i) => ({
@@ -198,7 +190,7 @@ describe('QueueService', () => {
       })
 
       // 只取出3个
-      const operations = await queueService.dequeue(TEST_USER_ID, 3)
+      const operations = await queueService.dequeue(testUserId, 3)
       expect(operations).toHaveLength(3)
     })
   })
@@ -207,7 +199,7 @@ describe('QueueService', () => {
     it('should mark operation as completed', async () => {
       // 入队操作
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Test' } }],
@@ -215,14 +207,14 @@ describe('QueueService', () => {
       })
 
       // 出队操作
-      const operations = await queueService.dequeue(TEST_USER_ID, 1)
+      const operations = await queueService.dequeue(testUserId, 1)
       expect(operations).toHaveLength(1)
 
       // 标记为完成
       await queueService.markAsCompleted(operations[0].id)
 
       // 验证状态
-      const { operations: completedOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: completedOps } = await queueService.queryQueue(testUserId, {
         status: 'completed'
       })
       expect(completedOps).toHaveLength(1)
@@ -234,14 +226,14 @@ describe('QueueService', () => {
   describe('markAsFailed', () => {
     it('should mark operation as failed when max retries exceeded', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Test' } }],
         priority: 'high'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 1)
+      const operations = await queueService.dequeue(testUserId, 1)
       const operation = operations[0]
 
       // 设置重试次数为最大值
@@ -253,7 +245,7 @@ describe('QueueService', () => {
       await queueService.markAsFailed(operation.id, 'Test error')
 
       // 验证状态为failed
-      const { operations: failedOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: failedOps } = await queueService.queryQueue(testUserId, {
         status: 'failed'
       })
       expect(failedOps).toHaveLength(1)
@@ -264,21 +256,21 @@ describe('QueueService', () => {
 
     it('should re-queue operation when retries remain', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Test' } }],
         priority: 'high'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 1)
+      const operations = await queueService.dequeue(testUserId, 1)
       const operation = operations[0]
 
       // 标记为失败（还有重试次数）
       await queueService.markAsFailed(operation.id, 'Temporary error')
 
       // 验证状态重新变为pending
-      const { operations: pendingOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: pendingOps } = await queueService.queryQueue(testUserId, {
         status: 'pending'
       })
       expect(pendingOps).toHaveLength(1)
@@ -289,23 +281,23 @@ describe('QueueService', () => {
   describe('removeFromQueue', () => {
     it('should remove operation from queue', async () => {
       const { queue_ids } = await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Test' } }],
         priority: 'high'
       })
 
-      const success = await queueService.removeFromQueue(queue_ids[0], TEST_USER_ID)
+      const success = await queueService.removeFromQueue(queue_ids[0], testUserId)
       expect(success).toBe(true)
 
       // 验证操作已被删除
-      const { total } = await queueService.queryQueue(TEST_USER_ID)
+      const { total } = await queueService.queryQueue(testUserId)
       expect(total).toBe(0)
     })
 
     it('should return false when operation not found', async () => {
-      const success = await queueService.removeFromQueue('non-existent-id', TEST_USER_ID)
+      const success = await queueService.removeFromQueue('non-existent-id', testUserId)
       expect(success).toBe(false)
     })
   })
@@ -313,7 +305,7 @@ describe('QueueService', () => {
   describe('clearQueue', () => {
     it('should clear all operations for user', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: Array.from({ length: 5 }, (_, i) => ({
@@ -324,11 +316,11 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const deletedCount = await queueService.clearQueue(TEST_USER_ID)
+      const deletedCount = await queueService.clearQueue(testUserId)
       expect(deletedCount).toBe(5)
 
       // 验证队列为空
-      const { total } = await queueService.queryQueue(TEST_USER_ID)
+      const { total } = await queueService.queryQueue(testUserId)
       expect(total).toBe(0)
     })
   })
@@ -340,7 +332,7 @@ describe('QueueService', () => {
   describe('getQueueStatus', () => {
     it('should return correct queue statistics', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -351,7 +343,7 @@ describe('QueueService', () => {
       })
 
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -360,9 +352,9 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const status = await queueService.getQueueStatus(TEST_USER_ID)
+      const status = await queueService.getQueueStatus(testUserId)
 
-      expect(status.user_id).toBe(TEST_USER_ID)
+      expect(status.user_id).toBe(testUserId)
       expect(status.total_operations).toBe(3)
       expect(status.pending_operations).toBe(3)
       expect(status.high_priority_count).toBe(2)
@@ -376,7 +368,7 @@ describe('QueueService', () => {
   describe('queryQueue', () => {
     it('should filter operations by status', async () => {
       const { queue_ids } = await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -390,13 +382,13 @@ describe('QueueService', () => {
       await queueService.markAsCompleted(queue_ids[0])
 
       // 查询待处理操作
-      const { operations: pendingOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: pendingOps } = await queueService.queryQueue(testUserId, {
         status: 'pending'
       })
       expect(pendingOps).toHaveLength(1)
 
       // 查询已完成操作
-      const { operations: completedOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: completedOps } = await queueService.queryQueue(testUserId, {
         status: 'completed'
       })
       expect(completedOps).toHaveLength(1)
@@ -404,7 +396,7 @@ describe('QueueService', () => {
 
     it('should filter operations by entity type', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -415,7 +407,7 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const { operations: noteOps } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: noteOps } = await queueService.queryQueue(testUserId, {
         entity_type: 'note'
       })
       expect(noteOps).toHaveLength(1)
@@ -424,7 +416,7 @@ describe('QueueService', () => {
 
     it('should support pagination', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: Array.from({ length: 10 }, (_, i) => ({
@@ -435,14 +427,14 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const { operations: page1, total } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: page1, total } = await queueService.queryQueue(testUserId, {
         limit: 3,
         offset: 0
       })
       expect(page1).toHaveLength(3)
       expect(total).toBe(10)
 
-      const { operations: page2 } = await queueService.queryQueue(TEST_USER_ID, {
+      const { operations: page2 } = await queueService.queryQueue(testUserId, {
         limit: 3,
         offset: 3
       })
@@ -453,7 +445,7 @@ describe('QueueService', () => {
   describe('getPerformanceStats', () => {
     it('should return performance statistics', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -463,15 +455,16 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 2)
+      const operations = await queueService.dequeue(testUserId, 2)
 
-      // 标记第一个为完成
       await queueService.markAsCompleted(operations[0].id)
 
-      // 标记第二个为失败
+      await prisma.$executeRaw`
+        UPDATE "SyncQueue" SET retry_count = 3 WHERE id = ${operations[1].id}
+      `
       await queueService.markAsFailed(operations[1].id, 'Test error')
 
-      const stats = await queueService.getPerformanceStats(TEST_USER_ID)
+      const stats = await queueService.getPerformanceStats(testUserId)
 
       expect(stats.total_processed).toBe(2)
       expect(stats.total_success).toBe(1)
@@ -488,7 +481,7 @@ describe('QueueService', () => {
   describe('processQueue', () => {
     it('should process queued operations', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -498,7 +491,7 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const result = await queueService.processQueue(TEST_USER_ID, async () => {
+      const result = await queueService.processQueue(testUserId, async () => {
         // 模拟处理
         await new Promise(resolve => setTimeout(resolve, 10))
         return { success: true }
@@ -512,7 +505,7 @@ describe('QueueService', () => {
 
     it('should handle processing errors', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -521,7 +514,7 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const result = await queueService.processQueue(TEST_USER_ID, async () => {
+      const result = await queueService.processQueue(testUserId, async () => {
         throw new Error('Processing error')
       })
 
@@ -538,7 +531,7 @@ describe('QueueService', () => {
   describe('recoverQueue', () => {
     it('should recover operations from database', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -548,26 +541,27 @@ describe('QueueService', () => {
         priority: 'high'
       })
 
-      const recovered = await queueService.recoverQueue(TEST_USER_ID)
+      const recovered = await queueService.recoverQueue(testUserId)
       expect(recovered).toHaveLength(2)
       expect(recovered[0].status).toBe('pending')
     })
 
     it('should reset timed-out operations', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Note 1' } }],
         priority: 'high'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 1)
+      const operations = await queueService.dequeue(testUserId, 1)
 
-      // 手动设置started_at为很久以前
+      // 手动设置started_at为很久以前（SQLite 兼容）
+      const oldTime = new Date(Date.now() - 60000) // 1分钟前
       await prisma.$executeRaw`
         UPDATE "SyncQueue"
-        SET started_at = NOW() - INTERVAL '1 minute'
+        SET started_at = ${oldTime}
         WHERE id = ${operations[0].id}
       `
 
@@ -583,7 +577,7 @@ describe('QueueService', () => {
         alertCheckInterval: 60000
       })
 
-      const recovered = await shortTimeoutService.recoverQueue(TEST_USER_ID)
+      const recovered = await shortTimeoutService.recoverQueue(testUserId)
       expect(recovered).toHaveLength(1)
       expect(recovered[0].status).toBe('pending')
       expect(recovered[0].retry_count).toBe(1)
@@ -598,9 +592,8 @@ describe('QueueService', () => {
 
   describe('cleanupOldOperations', () => {
     it('should remove old completed and failed operations', async () => {
-      // 添加并完成操作
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [
@@ -610,36 +603,38 @@ describe('QueueService', () => {
         priority: 'medium'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 2)
+      const operations = await queueService.dequeue(testUserId, 2)
       await queueService.markAsCompleted(operations[0].id)
+      
+      await prisma.$executeRaw`
+        UPDATE "SyncQueue" SET retry_count = 3 WHERE id = ${operations[1].id}
+      `
       await queueService.markAsFailed(operations[1].id, 'Test error')
 
-      // 手动设置completed_at为很久以前
+      const oldTime = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
       await prisma.$executeRaw`
         UPDATE "SyncQueue"
-        SET completed_at = NOW() - INTERVAL '2 days'
-        WHERE user_id = ${TEST_USER_ID}
+        SET completed_at = ${oldTime}
+        WHERE user_id = ${testUserId}
       `
 
-      // 清理1天前的操作
       const deletedCount = await queueService.cleanupOldOperations(1)
       expect(deletedCount).toBe(2)
 
-      // 验证操作已被删除
-      const { total } = await queueService.queryQueue(TEST_USER_ID)
+      const { total } = await queueService.queryQueue(testUserId)
       expect(total).toBe(0)
     })
 
     it('should not remove recent operations', async () => {
       await queueService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: [{ type: 'create', entity_type: 'note', data: { title: 'Note 1' } }],
         priority: 'medium'
       })
 
-      const operations = await queueService.dequeue(TEST_USER_ID, 1)
+      const operations = await queueService.dequeue(testUserId, 1)
       await queueService.markAsCompleted(operations[0].id)
 
       // 清理30天前的操作（不会影响最近的操作）
@@ -647,7 +642,7 @@ describe('QueueService', () => {
       expect(deletedCount).toBe(0)
 
       // 验证操作仍然存在
-      const { total } = await queueService.queryQueue(TEST_USER_ID)
+      const { total } = await queueService.queryQueue(testUserId)
       expect(total).toBe(1)
     })
   })
@@ -681,7 +676,7 @@ describe('QueueService', () => {
 
       // 添加超过阈值的操作
       await alertThresholdService.enqueue({
-        user_id: TEST_USER_ID,
+        user_id: testUserId,
         device_id: TEST_DEVICE_ID,
         client_id: TEST_CLIENT_ID,
         operations: Array.from({ length: 5 }, (_, i) => ({
@@ -693,7 +688,7 @@ describe('QueueService', () => {
       })
 
       // 手动触发告警检查
-      await alertThresholdService.checkAlertThreshold(TEST_USER_ID)
+      await alertThresholdService.checkAlertThreshold(testUserId)
 
       expect(alertTriggered).toBe(true)
       expect(alertMessage).toContain('High pending operation count')

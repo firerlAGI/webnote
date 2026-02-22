@@ -10,7 +10,7 @@ import {
   ConflictResolutionStrategy,
   ConflictType,
 } from '@webnote/shared/types/sync'
-import { prisma, logger, createTestUser, createTestNote } from '../setup'
+import { prisma, logger, createTestUser, createTestNote, cleanupDatabase } from '../setup'
 
 // ============================================================================
 // 测试套件
@@ -21,6 +21,7 @@ describe('冲突解决场景测试', () => {
   let testUser: any
 
   beforeEach(async () => {
+    await cleanupDatabase()
     syncService = new SyncService(prisma, logger)
     const user = await createTestUser()
     testUser = user

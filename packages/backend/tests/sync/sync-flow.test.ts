@@ -16,7 +16,7 @@ import {
   DeleteOperation,
   ReadOperation,
 } from '@webnote/shared/types/sync'
-import { prisma, logger, createTestUser, createTestData, createTestNote } from '../setup'
+import { prisma, logger, createTestUser, createTestData, createTestNote, cleanupDatabase } from '../setup'
 
 // ============================================================================
 // 测试套件
@@ -27,6 +27,7 @@ describe('同步流程端到端测试', () => {
   let testUser: any
 
   beforeEach(async () => {
+    await cleanupDatabase()
     syncService = new SyncService(prisma, logger)
     const user = await createTestUser()
     testUser = user

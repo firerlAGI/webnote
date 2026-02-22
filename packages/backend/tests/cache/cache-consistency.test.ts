@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { prisma, createTestUser, createTestNote, delay } from '../setup'
+import { prisma, createTestUser, createTestNote, delay, cleanupDatabase } from '../setup'
 
 // ============================================================================
 // 模拟三级缓存实现
@@ -300,6 +300,7 @@ describe('缓存一致性测试', () => {
   let testUser: any
 
   beforeEach(async () => {
+    await cleanupDatabase()
     cache = new HybridCache()
     const user = await createTestUser()
     testUser = user

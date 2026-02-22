@@ -53,7 +53,7 @@
 DATABASE_URL="postgresql://user:password@localhost:5432/webnote"
 
 # JWT
-JWT_SECRET="your-secret-key"
+JWT_SECRET="your-secure-random-key-min-32-chars"
 JWT_EXPIRES_IN="7d"
 
 # 服务器
@@ -481,6 +481,35 @@ interface GetBackupsQuery {
 }
 ```
 
+### 速率限制
+
+后端使用 `@fastify/rate-limit` 插件实现 API 速率限制：
+
+**默认配置**：
+- 限制：每个 IP 每分钟最多 100 个请求
+- 时间窗口：1 分钟
+- 超出限制响应：HTTP 429 Too Many Requests
+
+**响应头**：
+```
+x-ratelimit-limit: 100        # 时间窗口内允许的最大请求数
+x-ratelimit-remaining: 99     # 当前时间窗口内剩余的请求数
+x-ratelimit-reset: 1705312345 # 时间窗口重置的时间戳
+```
+
+**超出限制时的响应**：
+```json
+{
+  "statusCode": 429,
+  "error": "Too Many Requests",
+  "message": "Rate limit exceeded, retry in 60 seconds"
+}
+```
+
+**配置位置**：`packages/backend/src/server.ts`
+
+详细配置请参考：`docs/RateLimitConfig.md`
+
 ## 依赖管理
 
 ### 共享依赖 (workspace)
@@ -745,8 +774,47 @@ Closes #123
 
 ### JWT 配置
 
-- **JWT_SECRET**: `webnote-production-secret-key-change-in-production-2024`
+#### 密钥强度要求
+
+**重要安全要求：**
+
+1. **最小长度**: JWT_SECRET 必须至少 32 字符
+2. **字符复杂度**: 建议包含大小写字母、数字和特殊字符
+3. **随机性**: 必须使用加密安全的随机生成方法
+4. **禁止弱密钥**: 不得使用默认值、常见单词或可预测模式
+
+#### 密钥生成方法
+
+```bash
+# 方法1 - Node.js (推荐)
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+# 方法2 - OpenSSL
+openssl rand -base64 32
+
+# 方法3 - Python
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+#### 示例密钥格式
+
+```
+# 示例 (请勿在生产环境使用此密钥！)
+Kx8mP2nQ5vR9wY3zA7bC1dE6fG0hJ4kL+MnOpQrStUvWxYz==
+```
+
+#### 生产环境配置
+
+- **JWT_SECRET**: 使用加密安全的随机密钥（至少 32 字符）
 - **过期时间**: 7d
+- **配置文件**: `/var/www/webnote/backend/.env`
+- **配置模板**: `deploy/backend/.env.production.example`
+
+#### 密钥轮换建议
+
+- 建议每 90 天轮换一次 JWT_SECRET
+- 轮换时需要通知所有用户重新登录
+- 保留旧密钥的过渡期以支持平滑迁移
 
 ### 应用端口
 
@@ -761,8 +829,8 @@ Closes #123
 # 数据库（SQLite）
 DATABASE_URL="file:./dev.db"
 
-# JWT
-JWT_SECRET="webnote-production-secret-key-change-in-production-2024"
+# JWT (使用加密安全的随机密钥，至少32字符)
+JWT_SECRET="YOUR_SECURE_JWT_SECRET_HERE_MIN_32_CHARS"
 JWT_EXPIRES_IN="7d"
 
 # 服务器

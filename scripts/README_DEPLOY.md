@@ -367,22 +367,186 @@ tar -czf /var/backups/webnote/app_$BACKUP_DATE.tar.gz -C /var/www webnote --excl
 ENDSSH
 ```
 
-## SSL证书（可选）
+## HTTPS 配置
 
-如果需要HTTPS，使用Let's Encrypt：
+### 方案说明
+
+由于项目使用 IP 地址访问（120.26.50.152），Let's Encrypt 不支持 IP 地址证书，因此采用自签名证书方案。
+
+**适用场景**：
+- 内部测试环境
+- 开发环境
+- 不需要公开信任的场景
+
+**注意事项**：
+- 自签名证书会导致浏览器显示安全警告
+- 这是正常现象，点击"高级"->"继续访问"即可
+- 如需公开信任的证书，请使用域名 + Let's Encrypt
+
+### 自动配置（推荐）
+
+```bash
+# 1. 设置密码环境变量
+export DEPLOY_PASSWORD='REDACTED_PASSWORD'
+
+# 2. 运行配置脚本
+chmod +x scripts/setup-https.sh
+./scripts/setup-https.sh
+```
+
+脚本会自动完成：
+1. 检查并安装 OpenSSL
+2. 创建证书目录
+3. 生成自签名 SSL 证书（有效期 365 天）
+4. 配置 Nginx HTTPS
+5. 配置 HTTP 到 HTTPS 重定向
+6. 重启 Nginx 服务
+7. 验证 HTTPS 配置
+
+### 手动配置
+
+如果需要手动配置，请按以下步骤操作：
+
+#### 1. SSH 到服务器
 
 ```bash
 ssh root@120.26.50.152
+```
 
-# 安装Certbot
+#### 2. 创建证书目录
+
+```bash
+sudo mkdir -p /etc/ssl/webnote
+sudo chmod 700 /etc/ssl/webnote
+```
+
+#### 3. 生成自签名证书
+
+```bash
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/webnote/webnote.key \
+  -out /etc/ssl/webnote/webnote.crt \
+  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=WebNote/OU=IT/CN=120.26.50.152"
+
+sudo chmod 600 /etc/ssl/webnote/webnote.key
+sudo chmod 644 /etc/ssl/webnote/webnote.crt
+```
+
+#### 4. 配置 Nginx
+
+```bash
+# 复制 HTTPS 配置
+sudo cp deploy/nginx-https.conf /etc/nginx/sites-available/webnote
+
+# 创建软链接
+sudo ln -sf /etc/nginx/sites-available/webnote /etc/nginx/sites-enabled/
+
+# 测试配置
+sudo nginx -t
+
+# 重启 Nginx
+sudo systemctl restart nginx
+```
+
+#### 5. 更新后端环境变量
+
+```bash
+# 编辑后端环境变量
+nano /var/www/webnote/backend/.env
+
+# 添加 HTTPS 地址到 ALLOWED_ORIGINS
+ALLOWED_ORIGINS="http://120.26.50.152,https://120.26.50.152"
+
+# 重启后端服务
+pm2 restart webnote-backend
+```
+
+### 验证 HTTPS 配置
+
+```bash
+# 测试 HTTPS 连接
+curl -k https://120.26.50.152/health
+
+# 测试 HTTP 重定向
+curl -I http://120.26.50.152
+
+# 查看证书信息
+openssl x509 -in /etc/ssl/webnote/webnote.crt -text -noout
+```
+
+### 证书续期
+
+自签名证书有效期为 365 天，到期前需要重新生成：
+
+```bash
+# 方法1: 重新运行配置脚本
+./scripts/setup-https.sh
+
+# 方法2: 手动重新生成
+ssh root@120.26.50.152
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/webnote/webnote.key \
+  -out /etc/ssl/webnote/webnote.crt \
+  -subj "/C=CN/ST=Shanghai/L=Shanghai/O=WebNote/OU=IT/CN=120.26.50.152"
+sudo systemctl restart nginx
+```
+
+### 故障排除
+
+#### HTTPS 无法访问
+
+```bash
+# 检查 Nginx 状态
+ssh root@120.26.50.152 "sudo systemctl status nginx"
+
+# 检查端口监听
+ssh root@120.26.50.152 "sudo netstat -tulpn | grep -E ':(80|443)'"
+
+# 查看 Nginx 错误日志
+ssh root@120.26.50.152 "tail -f /var/log/nginx/error.log"
+```
+
+#### 证书文件不存在
+
+```bash
+# 检查证书文件
+ssh root@120.26.50.152 "ls -la /etc/ssl/webnote/"
+
+# 重新生成证书
+./scripts/setup-https.sh
+```
+
+#### 浏览器安全警告
+
+这是正常现象，自签名证书不被公共 CA 信任。解决方法：
+1. 点击浏览器中的"高级"
+2. 点击"继续访问"或"接受风险并继续"
+3. 或将证书添加到系统信任列表（仅限内部使用）
+
+### 使用域名 + Let's Encrypt（推荐用于生产环境）
+
+如果有域名，建议使用 Let's Encrypt 获取公开信任的证书：
+
+```bash
+# 1. 配置域名解析
+# 将域名 A 记录指向 120.26.50.152
+
+# 2. 安装 Certbot
+ssh root@120.26.50.152
 sudo apt install -y certbot python3-certbot-nginx
 
-# 获取证书
-sudo certbot --nginx -d 120.26.50.152
+# 3. 获取证书
+sudo certbot --nginx -d your-domain.com
 
-# 测试自动续期
+# 4. 测试自动续期
 sudo certbot renew --dry-run
 ```
+
+Certbot 会自动：
+- 获取 Let's Encrypt 证书
+- 配置 Nginx 使用 HTTPS
+- 设置 HTTP 到 HTTPS 重定向
+- 配置自动续期（证书有效期 90 天）
 
 ## 监控
 
@@ -422,6 +586,90 @@ git pull origin main
 pnpm install
 ./scripts/deploy.sh
 ```
+
+## 速率限制配置
+
+### 当前配置
+
+WebNote 后端使用 `@fastify/rate-limit` 插件实现 API 速率限制：
+
+- **默认限制**：每个 IP 每分钟最多 100 个请求
+- **超出限制**：返回 HTTP 429 Too Many Requests
+
+### 查看当前配置
+
+```bash
+# 查看速率限制配置
+ssh root@120.26.50.152 "grep -A 5 'rateLimit' /var/www/webnote/backend/dist/server.js"
+```
+
+### 修改速率限制
+
+1. 编辑本地配置文件 `packages/backend/src/server.ts`：
+
+```typescript
+app.register(rateLimit, {
+  max: 200,              // 修改为每分钟 200 个请求
+  timeWindow: '1 minute'
+})
+```
+
+2. 重新部署：
+
+```bash
+./scripts/deploy.sh
+```
+
+### 环境变量配置（推荐）
+
+可以通过环境变量动态配置：
+
+```bash
+# 在服务器上设置环境变量
+ssh root@120.26.50.152
+
+cd /var/www/webnote/backend
+nano .env
+
+# 添加以下内容
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=1 minute
+```
+
+### 白名单配置
+
+对于内部服务，可以配置 IP 白名单：
+
+```typescript
+app.register(rateLimit, {
+  max: 100,
+  timeWindow: '1 minute',
+  allowList: ['127.0.0.1', '::1']  // 本地回环地址
+})
+```
+
+### 监控速率限制
+
+```bash
+# 查看被限制的请求日志
+ssh root@120.26.50.152 "grep '429' /var/www/webnote/backend/logs/out.log"
+
+# 实时监控
+ssh root@120.26.50.152 "tail -f /var/www/webnote/backend/logs/out.log | grep -E '(429|rate)'"
+```
+
+### 测试速率限制
+
+```bash
+# 测试健康检查端点的速率限制
+for i in {1..110}; do
+  curl -s -o /dev/null -w "%{http_code}\n" http://120.26.50.152/api/health
+done
+
+# 应该看到前 100 个请求返回 200，后续请求返回 429
+```
+
+详细配置请参考 [速率限制配置文档](../docs/RateLimitConfig.md)
 
 ## 性能优化
 

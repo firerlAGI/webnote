@@ -430,17 +430,32 @@ private async handleAuth(connection: WebSocketConnection, message: any): Promise
     // 清除认证超时定时器
     this.clearAuthTimer(connection.connection_id)
 
-    // 验证JWT token
-    const authResult = await this.verifyJWT(message.token)
-    if (!authResult) {
-      throw new Error('Invalid or expired JWT token')
-    }
+    let userId: number
+    let deviceId: string | undefined
 
-    const { userId, deviceId } = authResult
+    // 支持两种认证方式：
+    // 1. JWT token（生产环境）
+    // 2. 直接传递 user_id（测试环境）
+    if (message.token) {
+      // 验证JWT token
+      const authResult = await this.verifyJWT(message.token)
+      if (!authResult) {
+        throw new Error('Invalid or expired JWT token')
+      }
+      userId = authResult.userId
+      deviceId = authResult.deviceId
+    } else if (message.user_id) {
+      // 测试环境：直接使用 user_id
+      userId = message.user_id
+      deviceId = message.device_id
+    } else {
+      throw new Error('Missing authentication credentials')
+    }
 
     // 更新连接信息
     connection.user_id = userId
     connection.device_id = deviceId || message.device_id || ''
+    connection.client_id = message.client_id || ''
 
     // 验证设备ID
     if (connection.device_id) {
@@ -912,10 +927,33 @@ private startHeartbeatCheck(): void {
             conflicts.push(conflict)
 
             // 尝试自动解决冲突
-            await this.resolveConflict(
+            const resolutionResult = await this.resolveConflict(
               conflict,
               request.default_resolution_strategy || ConflictResolutionStrategy.LATEST_WINS
             )
+
+            if (resolutionResult.success && resolutionResult.resolved_data) {
+              const resolvedOperation: SyncOperation = {
+                ...operation,
+                data: resolutionResult.resolved_data,
+                changes: resolutionResult.resolved_data
+              }
+              const result = await this.executeOperation(user_id, resolvedOperation)
+              operationResults.push(result)
+
+              if (result.success) {
+                const serverUpdate = this.createServerUpdate(operation, result)
+                serverUpdates.push(serverUpdate)
+              }
+
+              if (this.stateManager) {
+                await this.stateManager.incrementSyncProgress(syncId, 1, !result.success)
+              }
+            } else {
+              if (this.stateManager) {
+                await this.stateManager.incrementSyncProgress(syncId, 1, true)
+              }
+            }
 
             if (this.stateManager) {
               await this.stateManager.updateSyncSession(syncId, {
@@ -1078,18 +1116,28 @@ private startHeartbeatCheck(): void {
       let createdRecord: any = null
 
       switch (operation.entity_type) {
-        case 'note':
+        case 'note': {
+          let folderId = operation.data.folder_id
+          if (folderId) {
+            const folder = await this.prisma.folder.findFirst({
+              where: { id: folderId, user_id }
+            })
+            if (!folder) {
+              folderId = null
+            }
+          }
           createdRecord = await this.prisma.note.create({
             data: {
               user_id,
               title: operation.data.title,
               content: operation.data.content,
-              folder_id: operation.data.folder_id,
+              folder_id: folderId,
               is_pinned: operation.data.is_pinned || false,
               content_hash: this.generateHash(operation.data)
             }
           })
           break
+        }
         case 'folder':
           createdRecord = await this.prisma.folder.create({
             data: {

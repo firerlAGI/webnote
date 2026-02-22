@@ -4,7 +4,7 @@
  */
 
 import { PrismaClient } from '@prisma/client';
-import { existsSync, mkdirSync, unlinkSync, statSync } from 'fs';
+import { existsSync, mkdirSync, unlinkSync, statSync, readFileSync } from 'fs';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { fileURLToPath } from 'url';
@@ -103,8 +103,6 @@ export interface RestoreOptions {
 // 备份服务类
 // ============================================================================
 
-const prisma = new PrismaClient();
-
 class BackupService {
   private backupsDir: string;
   private ossClient: OSS;
@@ -112,12 +110,12 @@ class BackupService {
   private readonly ENCRYPTION_KEY_LENGTH = 32;
   private readonly IV_LENGTH = 16;
   private readonly AUTH_TAG_LENGTH = 16;
+  private prisma: PrismaClient;
 
-  constructor() {
-    // 设置备份目录
+  constructor(prismaClient?: PrismaClient) {
+    this.prisma = prismaClient ?? new PrismaClient();
     this.backupsDir = join(__dirname, '..', '..', 'backups');
     this.ensureBackupsDirectory();
-    // 初始化OSS客户端
     this.ossClient = ossConfig.getClient();
   }
 
@@ -164,6 +162,14 @@ class BackupService {
     } catch {
       return 0;
     }
+  }
+
+  private isLocalStorage(ossKey: string): boolean {
+    return ossKey.startsWith('local://');
+  }
+
+  private getLocalFilePath(ossKey: string): string {
+    return ossKey.replace('local://', '');
   }
 
   /**
@@ -270,7 +276,7 @@ class BackupService {
    */
   async cleanupExpiredBackups(): Promise<number> {
     try {
-      const expiredBackups = await prisma.backup.findMany({
+      const expiredBackups = await this.prisma.backup.findMany({
         where: {
           retention_until: {
             lte: new Date(),
@@ -282,10 +288,15 @@ class BackupService {
 
       for (const backup of expiredBackups) {
         try {
-          // 从OSS删除
-          await this.deleteFromOSS(backup.oss_key, backup.oss_version_id || undefined);
-          // 从数据库删除记录
-          await prisma.backup.delete({
+          if (this.isLocalStorage(backup.oss_key)) {
+            const localPath = this.getLocalFilePath(backup.oss_key);
+            if (existsSync(localPath)) {
+              unlinkSync(localPath);
+            }
+          } else {
+            await this.deleteFromOSS(backup.oss_key, backup.oss_version_id || undefined);
+          }
+          await this.prisma.backup.delete({
             where: { id: backup.id },
           });
           deletedCount++;
@@ -325,9 +336,9 @@ class BackupService {
       });
 
       const [notes, folders, reviews] = await Promise.all([
-        prisma.note.findMany({ where: { user_id: userId } }),
-        prisma.folder.findMany({ where: { user_id: userId } }),
-        prisma.review.findMany({ where: { user_id: userId } }),
+        this.prisma.note.findMany({ where: { user_id: userId } }),
+        this.prisma.folder.findMany({ where: { user_id: userId } }),
+        this.prisma.review.findMany({ where: { user_id: userId } }),
       ]);
 
       const totalItems = notes.length + folders.length + reviews.length;
@@ -369,6 +380,7 @@ class BackupService {
 
       const jsonData = JSON.stringify(backupData, null, 2);
       const encryptionKey = this.generateEncryptionKey();
+      const encryptionKeyHex = encryptionKey.toString('hex');
 
       // 步骤4: 加密数据
       onProgress?.({
@@ -396,20 +408,55 @@ class BackupService {
       const filePath = this.getBackupFilePath(userId, backupId);
       await writeFile(filePath, encryptedData, 'utf8');
 
-      // 步骤6: 上传到OSS
-      onProgress?.({
-        inProgress: true,
-        progress: 60,
-        currentStep: '上传到OSS',
-        totalSteps,
-        processedItems: 0,
-        totalItems,
-      });
+      const retentionType = ossConfig.determineRetentionType(type);
+      const retentionUntil = ossConfig.calculateRetentionUntil(retentionType);
+      const size = BigInt(dataBuffer.length);
 
-      const ossKey = ossConfig.generateBackupKey(userId, backupId, type);
-      const uploadResult = await this.uploadToOSS(ossKey, dataBuffer, 'AES256');
+      let ossKey: string;
+      let ossVersionId: string | null = null;
+      let storageLocation: 'oss' | 'local' = 'local';
 
-      // 步骤7: 保存备份记录到数据库
+      if (this.ossClient && ossConfig.isOSSConfigured()) {
+        onProgress?.({
+          inProgress: true,
+          progress: 60,
+          currentStep: '上传到OSS',
+          totalSteps,
+          processedItems: 0,
+          totalItems,
+        });
+
+        try {
+          ossKey = ossConfig.generateBackupKey(userId, backupId, type);
+          const uploadResult = await this.uploadToOSS(ossKey, dataBuffer, 'AES256');
+          ossVersionId = uploadResult.versionId || null;
+          storageLocation = 'oss';
+        } catch (ossError) {
+          console.warn('OSS upload failed, falling back to local storage:', ossError);
+          onProgress?.({
+            inProgress: true,
+            progress: 70,
+            currentStep: 'OSS上传失败，使用本地存储',
+            totalSteps,
+            processedItems: 0,
+            totalItems,
+          });
+          ossKey = `local://${filePath}`;
+          storageLocation = 'local';
+        }
+      } else {
+        onProgress?.({
+          inProgress: true,
+          progress: 60,
+          currentStep: '跳过OSS上传',
+          totalSteps,
+          processedItems: 0,
+          totalItems,
+        });
+
+        ossKey = `local://${filePath}`;
+      }
+
       onProgress?.({
         inProgress: true,
         progress: 80,
@@ -419,17 +466,12 @@ class BackupService {
         totalItems,
       });
 
-      const retentionType = ossConfig.determineRetentionType(type);
-      const retentionUntil = ossConfig.calculateRetentionUntil(retentionType);
-
-      const size = BigInt(dataBuffer.length);
-
-      await prisma.backup.create({
+      await this.prisma.backup.create({
         data: {
           user_id: userId,
           backup_id: backupId,
           oss_key: ossKey,
-          oss_version_id: uploadResult.versionId,
+          oss_version_id: ossVersionId,
           size,
           type,
           status: 'completed',
@@ -440,7 +482,9 @@ class BackupService {
           metadata: JSON.stringify({
             noteCount: notes.length,
             folderCount: folders.length,
-            reviewCount: reviews.length
+            reviewCount: reviews.length,
+            storageLocation,
+            encryptionKey: encryptionKeyHex,
           }),
         },
       });
@@ -484,7 +528,7 @@ class BackupService {
    */
   async getBackupList(userId: number): Promise<BackupInfo[]> {
     try {
-      const backups = await prisma.backup.findMany({
+      const backups = await this.prisma.backup.findMany({
         where: {
           user_id: userId,
         },
@@ -519,8 +563,7 @@ class BackupService {
    */
   async getBackupDetail(userId: number, backupId: string): Promise<BackupData | null> {
     try {
-      // 从数据库获取备份信息
-      const backup = await prisma.backup.findUnique({
+      const backup = await this.prisma.backup.findUnique({
         where: {
           backup_id: backupId,
         },
@@ -530,13 +573,24 @@ class BackupService {
         return null;
       }
 
-      // 从OSS下载
-      const dataBuffer = await this.downloadFromOSS(backup.oss_key);
-      const encryptedData = dataBuffer.toString('utf8');
+      let encryptedData: string;
 
-      // 解密数据（注意：实际应用中需要安全地存储和获取加密密钥）
-      // 这里简化处理，实际应用中应该使用密钥管理服务
-      const encryptionKey = this.generateEncryptionKey();
+      if (this.isLocalStorage(backup.oss_key)) {
+        const localPath = this.getLocalFilePath(backup.oss_key);
+        encryptedData = readFileSync(localPath, 'utf8');
+      } else {
+        const dataBuffer = await this.downloadFromOSS(backup.oss_key);
+        encryptedData = dataBuffer.toString('utf8');
+      }
+
+      const metadata = backup.metadata ? JSON.parse(backup.metadata) : {};
+      const encryptionKeyHex = metadata.encryptionKey;
+      
+      if (!encryptionKeyHex) {
+        throw new Error('Encryption key not found in backup metadata');
+      }
+      
+      const encryptionKey = Buffer.from(encryptionKeyHex, 'hex');
       const jsonData = this.decryptData(encryptedData, encryptionKey);
 
       return JSON.parse(jsonData);
@@ -589,11 +643,9 @@ class BackupService {
         });
 
         // 删除现有的笔记
-        await prisma.note.deleteMany({ where: { user_id: userId } });
-        // 删除现有的文件夹
-        await prisma.folder.deleteMany({ where: { user_id: userId } });
-        // 删除现有的评论
-        await prisma.review.deleteMany({ where: { user_id: userId } });
+        await this.prisma.note.deleteMany({ where: { user_id: userId } });
+        await this.prisma.folder.deleteMany({ where: { user_id: userId } });
+        await this.prisma.review.deleteMany({ where: { user_id: userId } });
       }
 
       // 步骤3: 恢复文件夹
@@ -612,7 +664,7 @@ class BackupService {
       for (const folder of backupData.folders) {
         // 移除原始ID，让数据库自动生成
         const { id, ...folderData } = folder;
-        const newFolder = await prisma.folder.create({
+        const newFolder = await this.prisma.folder.create({
           data: {
             ...folderData,
             user_id: userId,
@@ -640,7 +692,7 @@ class BackupService {
         // 转换 folder_id
         const newFolderId = note.folder_id ? folderIdMap.get(note.folder_id) : null;
 
-        await prisma.note.create({
+        await this.prisma.note.create({
           data: {
             ...noteData,
             user_id: userId,
@@ -663,7 +715,7 @@ class BackupService {
       for (const review of backupData.reviews) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { id: _id, user: _user, ...reviewData } = review;
-        await prisma.review.create({
+        await this.prisma.review.create({
           data: {
             ...reviewData,
             user_id: userId,
@@ -701,8 +753,7 @@ class BackupService {
    */
   async deleteBackup(userId: number, backupId: string): Promise<boolean> {
     try {
-      // 从数据库获取备份信息
-      const backup = await prisma.backup.findUnique({
+      const backup = await this.prisma.backup.findUnique({
         where: {
           backup_id: backupId,
         },
@@ -712,17 +763,21 @@ class BackupService {
         return false;
       }
 
-      // 从OSS删除
-      await this.deleteFromOSS(backup.oss_key, backup.oss_version_id || undefined);
+      if (this.isLocalStorage(backup.oss_key)) {
+        const localPath = this.getLocalFilePath(backup.oss_key);
+        if (existsSync(localPath)) {
+          unlinkSync(localPath);
+        }
+      } else {
+        await this.deleteFromOSS(backup.oss_key, backup.oss_version_id || undefined);
+      }
 
-      // 删除本地文件（如果存在）
       const filePath = this.getBackupFilePath(userId, backupId);
       if (existsSync(filePath)) {
         unlinkSync(filePath);
       }
 
-      // 从数据库删除记录
-      await prisma.backup.delete({
+      await this.prisma.backup.delete({
         where: { id: backup.id },
       });
 
@@ -733,13 +788,9 @@ class BackupService {
     }
   }
 
-  /**
-   * 下载备份
-   */
   async downloadBackup(userId: number, backupId: string): Promise<Buffer | null> {
     try {
-      // 从数据库获取备份信息
-      const backup = await prisma.backup.findUnique({
+      const backup = await this.prisma.backup.findUnique({
         where: {
           backup_id: backupId,
         },
@@ -749,9 +800,13 @@ class BackupService {
         return null;
       }
 
-      // 从OSS下载
-      const dataBuffer = await this.downloadFromOSS(backup.oss_key);
-      return dataBuffer;
+      if (this.isLocalStorage(backup.oss_key)) {
+        const localPath = this.getLocalFilePath(backup.oss_key);
+        return readFileSync(localPath);
+      } else {
+        const dataBuffer = await this.downloadFromOSS(backup.oss_key);
+        return dataBuffer;
+      }
     } catch (error) {
       console.error('Download backup failed:', error);
       return null;
@@ -759,6 +814,6 @@ class BackupService {
   }
 }
 
-// 导出单例
 export const backupService = new BackupService();
+export const createBackupService = (prismaClient: PrismaClient): BackupService => new BackupService(prismaClient);
 export default backupService;

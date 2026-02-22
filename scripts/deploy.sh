@@ -27,6 +27,73 @@ echo -e "${GREEN}  服务器: $SERVER${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
+# JWT_SECRET 强度检查函数
+check_jwt_secret_strength() {
+    local secret="$1"
+    local min_length=32
+    
+    # 检查长度
+    if [ ${#secret} -lt $min_length ]; then
+        echo -e "${RED}错误: JWT_SECRET 长度不足！${NC}"
+        echo -e "${RED}  当前长度: ${#secret} 字符${NC}"
+        echo -e "${RED}  最低要求: $min_length 字符${NC}"
+        echo ""
+        echo -e "${YELLOW}请使用以下方法生成强密钥：${NC}"
+        echo -e "${YELLOW}  方法1 (Node.js): node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\"${NC}"
+        echo -e "${YELLOW}  方法2 (OpenSSL): openssl rand -base64 32${NC}"
+        echo -e "${YELLOW}  方法3 (Python): python3 -c \"import secrets; print(secrets.token_urlsafe(32))\"${NC}"
+        return 1
+    fi
+    
+    # 检查是否为默认/弱密钥
+    local weak_patterns=("your-secret-key" "change-in-production" "secret" "password" "123456" "webnote-production-secret-key-change-in-production-2024")
+    for pattern in "${weak_patterns[@]}"; do
+        if [[ "$secret" == *"$pattern"* ]]; then
+            echo -e "${RED}错误: JWT_SECRET 包含弱密钥模式: '$pattern'${NC}"
+            echo -e "${RED}  请生成一个加密安全的随机密钥${NC}"
+            return 1
+        fi
+    done
+    
+    # 检查字符多样性
+    local has_upper=$(echo "$secret" | grep -c '[A-Z]')
+    local has_lower=$(echo "$secret" | grep -c '[a-z]')
+    local has_digit=$(echo "$secret" | grep -c '[0-9]')
+    local has_special=$(echo "$secret" | grep -c '[!@#$%^&*()_+\-=\[\]{};:,.<>?]')
+    
+    local complexity=0
+    [ $has_upper -gt 0 ] && ((complexity++))
+    [ $has_lower -gt 0 ] && ((complexity++))
+    [ $has_digit -gt 0 ] && ((complexity++))
+    [ $has_special -gt 0 ] && ((complexity++))
+    
+    if [ $complexity -lt 3 ]; then
+        echo -e "${YELLOW}警告: JWT_SECRET 复杂度较低（建议包含大小写字母、数字和特殊字符）${NC}"
+        echo -e "${YELLOW}  当前包含: ${has_upper}大写, ${has_lower}小写, ${has_digit}数字, ${has_special}特殊字符${NC}"
+    fi
+    
+    echo -e "${GREEN}✓ JWT_SECRET 强度检查通过 (${#secret} 字符)${NC}"
+    return 0
+}
+
+# 生产环境部署前检查
+if [ "$ENV" = "prod" ]; then
+    echo -e "${YELLOW}[0/7] 生产环境安全检查...${NC}"
+    
+    # 尝试从服务器获取当前 JWT_SECRET
+    JWT_SECRET_VALUE=$(ssh $SERVER "grep '^JWT_SECRET=' $REMOTE_DIR/backend/.env 2>/dev/null | cut -d '=' -f2-" | tr -d '"' | tr -d "'")
+    
+    if [ -n "$JWT_SECRET_VALUE" ]; then
+        if ! check_jwt_secret_strength "$JWT_SECRET_VALUE"; then
+            echo -e "${RED}部署已终止，请更新 JWT_SECRET 后重试${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${YELLOW}警告: 无法从服务器获取 JWT_SECRET，将在部署后检查${NC}"
+    fi
+    echo ""
+fi
+
 # 1. 本地构建
 echo -e "${YELLOW}[1/7] 本地构建...${NC}"
 cd "$PROJECT_ROOT"
@@ -34,19 +101,19 @@ cd "$PROJECT_ROOT"
 # 构建共享包
 echo "  - 构建共享包..."
 cd packages/shared
-npm run build
+pnpm run build
 cd ../..
 
 # 构建后端
 echo "  - 构建后端..."
 cd packages/backend
-npm run build
+pnpm run build
 cd ../..
 
 # 构建前端
 echo "  - 构建前端..."
 cd packages/web
-npm run build
+pnpm run build
 cd ../..
 
 echo -e "${GREEN}✓ 本地构建完成${NC}"
@@ -60,14 +127,16 @@ mkdir -p "$TEMP_DIR"
 
 # 复制必要文件
 echo "  - 复制后端文件..."
-cp -r packages/backend/dist "$TEMP_DIR/backend"
-cp -r packages/backend/prisma "$TEMP_DIR/backend"
-cp packages/backend/package.json "$TEMP_DIR/backend"
-cp -r packages/backend/uploads "$TEMP_DIR/backend" 2>/dev/null || mkdir -p "$TEMP_DIR/backend/uploads"
+mkdir -p "$TEMP_DIR/backend"
+cp -r packages/backend/dist "$TEMP_DIR/backend/"
+cp -r packages/backend/prisma "$TEMP_DIR/backend/"
+cp packages/backend/package.json "$TEMP_DIR/backend/"
+cp -r packages/backend/uploads "$TEMP_DIR/backend/" 2>/dev/null || mkdir -p "$TEMP_DIR/backend/uploads"
 
 echo "  - 复制共享包..."
-cp -r packages/shared/dist "$TEMP_DIR/backend/shared"
-cp packages/shared/package.json "$TEMP_DIR/backend/shared"
+mkdir -p "$TEMP_DIR/backend/shared"
+cp -r packages/shared/dist "$TEMP_DIR/backend/shared/"
+cp packages/shared/package.json "$TEMP_DIR/backend/shared/"
 
 echo "  - 创建生产环境 package.json..."
 cp scripts/production-backend-package.json "$TEMP_DIR/backend/package.json"
@@ -83,10 +152,15 @@ set -e
 REMOTE_DIR="/var/www/webnote"
 BACKUP_DIR="/var/backups/webnote"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-DEPLOY_DIR=$(ls -td /tmp/webnote_* | head -1)
+DEPLOY_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo "停止服务..."
-pm2 stop webnote-backend || true
+pm2 delete webnote-backend || true
+
+echo "保存配置文件..."
+if [ -f "$REMOTE_DIR/backend/.env" ]; then
+    cp "$REMOTE_DIR/backend/.env" /tmp/webnote_env.bak
+fi
 
 echo "备份现有版本..."
 mkdir -p "$BACKUP_DIR"
@@ -96,42 +170,123 @@ mkdir -p "$BACKUP_DIR"
 echo "部署新版本..."
 rm -rf "$REMOTE_DIR/backend"
 rm -rf "$REMOTE_DIR/web"
+rm -rf "$REMOTE_DIR/node_modules"
+rm -f "$REMOTE_DIR/pnpm-lock.yaml"
 cp -r "$DEPLOY_DIR/backend" "$REMOTE_DIR/backend"
 cp -r "$DEPLOY_DIR/web" "$REMOTE_DIR/web"
 
-echo "创建环境变量文件..."
+echo "恢复配置文件..."
+if [ -f /tmp/webnote_env.bak ]; then
+    mv /tmp/webnote_env.bak "$REMOTE_DIR/backend/.env"
+fi
+
+# 检查 .env 是否使用了默认密码，如果是，尝试从备份恢复
+if grep -q "your_secure_password" "$REMOTE_DIR/backend/.env" 2>/dev/null || [ ! -f "$REMOTE_DIR/backend/.env" ]; then
+    echo "检测到无效或缺失的 .env 文件，尝试从历史备份中搜索有效配置..."
+    
+    FOUND=false
+    # 列出所有备份目录，按时间倒序
+    for BACKUP in $(ls -td "$BACKUP_DIR"/backend_* 2>/dev/null); do
+        if [ -f "$BACKUP/.env" ]; then
+            if ! grep -q "your_secure_password" "$BACKUP/.env"; then
+                echo "找到有效配置：$BACKUP/.env"
+                cp "$BACKUP/.env" "$REMOTE_DIR/backend/.env"
+                FOUND=true
+                break
+            else
+                 echo "跳过无效配置（默认密码）：$BACKUP/.env"
+            fi
+        fi
+    done
+    
+    if [ "$FOUND" = "false" ]; then
+        echo "警告：未找到包含非默认密码的有效 .env 备份！数据库连接可能会失败。"
+    fi
+fi
+
+echo "检查环境变量文件..."
 cd "$REMOTE_DIR/backend"
-if [ "\$ENABLE_HTTPS" = "true" ]; then
-    cat > .env << 'ENVEOF'
+if [ ! -f .env ]; then
+    echo "警告: .env 文件不存在，使用默认模板创建..."
+    if [ "\$ENABLE_HTTPS" = "true" ]; then
+        cat > .env << 'ENVEOF'
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
-DATABASE_URL=file:./dev.db
+DATABASE_URL=postgresql://webnote_user:your_secure_password@localhost:5432/webnote
 JWT_SECRET=webnote-production-secret-key-change-in-production-2024
 ALLOWED_ORIGINS=https://120.26.50.152,http://120.26.50.152,http://localhost:5173,http://localhost:3000
 ENVEOF
-else
-    cat > .env << 'ENVEOF'
+    else
+        cat > .env << 'ENVEOF'
 NODE_ENV=production
 PORT=3000
 HOST=0.0.0.0
-DATABASE_URL=file:./dev.db
+DATABASE_URL=postgresql://webnote_user:your_secure_password@localhost:5432/webnote
 JWT_SECRET=webnote-production-secret-key-change-in-production-2024
 ALLOWED_ORIGINS=http://120.26.50.152,http://localhost:5173,http://localhost:3000
 ENVEOF
+    fi
+else
+    echo "保留现有 .env 文件"
 fi
 
+# JWT_SECRET 强度检查
+echo "检查 JWT_SECRET 强度..."
+JWT_SECRET_VALUE=$(grep '^JWT_SECRET=' .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+MIN_LENGTH=32
+
+if [ \${#JWT_SECRET_VALUE} -lt \$MIN_LENGTH ]; then
+    echo "错误: JWT_SECRET 长度不足！"
+    echo "  当前长度: \${#JWT_SECRET_VALUE} 字符"
+    echo "  最低要求: \$MIN_LENGTH 字符"
+    echo ""
+    echo "请使用以下方法生成强密钥："
+    echo "  node -e \"console.log(require('crypto').randomBytes(32).toString('base64'))\""
+    echo "  或"
+    echo "  openssl rand -base64 32"
+    echo ""
+    echo "生成后，请手动更新 .env 文件中的 JWT_SECRET"
+    exit 1
+fi
+
+# 检查弱密钥模式
+WEAK_PATTERNS="your-secret-key change-in-production secret password 123456 webnote-production-secret-key-change-in-production-2024"
+for pattern in \$WEAK_PATTERNS; do
+    if [[ "\$JWT_SECRET_VALUE" == *"\$pattern"* ]]; then
+        echo "错误: JWT_SECRET 包含弱密钥模式: '\$pattern'"
+        echo "  请生成一个加密安全的随机密钥"
+        exit 1
+    fi
+done
+
+echo "✓ JWT_SECRET 强度检查通过 (\${#JWT_SECRET_VALUE} 字符)"
+
 echo "安装后端依赖..."
-npm install --production --legacy-peer-deps
+pnpm install
+
+echo "检查数据库配置..."
+# 获取 DATABASE_URL，处理可能的引号
+DB_URL=$(grep "^DATABASE_URL=" .env | cut -d '=' -f2- | tr -d '"' | tr -d "'")
+
+if [[ "$DB_URL" == file:* ]]; then
+    echo "检测到 SQLite 配置，保持 schema.prisma 不变..."
+elif [[ "$DB_URL" == postgresql:* ]] || [[ "$DB_URL" == postgres:* ]]; then
+    echo "检测到 PostgreSQL 配置，修改 schema.prisma..."
+    sed -i 's/provider = "sqlite"/provider = "postgresql"/g' prisma/schema.prisma
+else
+    echo "警告：未知的数据库协议，尝试修改为 PostgreSQL..."
+    sed -i 's/provider = "sqlite"/provider = "postgresql"/g' prisma/schema.prisma
+fi
 
 echo "生成 Prisma Client..."
-npx prisma generate
+pnpm prisma generate
 
 echo "运行数据库迁移..."
-npx prisma migrate deploy
+pnpm prisma migrate deploy
 
 echo "启动服务..."
-pm2 restart webnote-backend || pm2 start npm --name webnote-backend -- start
+pm2 restart webnote-backend || pm2 start pnpm --name webnote-backend -- start
 
 echo "清理旧备份（保留最近7天）..."
 find "$BACKUP_DIR" -name "backend_*" -mtime +7 -delete
@@ -170,13 +325,12 @@ fi
 
 # 检查密码是否设置
 if [ -z "$DEPLOY_PASSWORD" ]; then
-    echo -e "${RED}错误: 未设置 DEPLOY_PASSWORD${NC}"
-    echo -e "${YELLOW}请在 scripts/.secrets 文件中设置 DEPLOY_PASSWORD 或导出环境变量${NC}"
-    exit 1
+    echo -e "${YELLOW}警告: 未设置 DEPLOY_PASSWORD，将尝试使用 SSH 密钥登录${NC}"
 fi
 
-PASSWORD="$DEPLOY_PASSWORD"
-expect << EOF
+if [ -n "$DEPLOY_PASSWORD" ]; then
+    PASSWORD="$DEPLOY_PASSWORD"
+    expect << EOF
 set timeout 300
 spawn scp /tmp/webnote_$TIMESTAMP.tar.gz $SERVER:/tmp/
 expect {
@@ -197,6 +351,9 @@ expect {
     }
 }
 EOF
+else
+    scp /tmp/webnote_$TIMESTAMP.tar.gz $SERVER:/tmp/
+fi
 
 echo -e "${GREEN}✓ 上传完成${NC}"
 echo ""
@@ -204,8 +361,9 @@ echo ""
 # 4. 解压并执行部署
 echo -e "${YELLOW}[4/7] 在服务器上执行部署...${NC}"
 
-# 使用expect自动执行远程部署
-expect << EOF
+if [ -n "$DEPLOY_PASSWORD" ]; then
+    # 使用expect自动执行远程部署
+    expect << EOF
 set timeout 600
 spawn ssh $SERVER
 expect {
@@ -217,29 +375,29 @@ expect {
         send "$PASSWORD\r"
         exp_continue
     }
-    "*[\$#]*" {
+    "*#*" {
         send "set -e\n"
-        expect "*[\$#]*"
+        expect "*#*"
         send "echo '解压文件...'\n"
-        expect "*[\$#]*"
+        expect "*#*"
         send "cd /tmp\n"
-        expect "*[\$#]*"
-        send "tar -xzf webnote_*.tar.gz\n"
-        expect "*[\$#]*"
-        send "cd webnote_*\n"
-        expect "*[\$#]*"
+        expect "*#*"
+        send "tar -xzf webnote_$TIMESTAMP.tar.gz\n"
+        expect "*#*"
+        send "cd webnote_$TIMESTAMP\n"
+        expect "*#*"
         send "echo '执行部署脚本...'\n"
-        expect "*[\$#]*"
+        expect "*#*"
         send "bash deploy-remote.sh\n"
-        expect "*[\$#]*"
+        expect "*#*"
         send "echo '清理临时文件...'\n"
-        expect "*[\$#]*"
+        expect "*#*"
         send "cd /tmp\n"
-        expect "*[\$#]*"
-        send "rm -rf webnote_*\n"
-        expect "*[\$#]*"
-        send "rm -f webnote_*.tar.gz\n"
-        expect "*[\$#]*"
+        expect "*#*"
+        send "rm -rf webnote_$TIMESTAMP\n"
+        expect "*#*"
+        send "rm -f webnote_$TIMESTAMP.tar.gz\n"
+        expect "*#*"
         send "exit\n"
         expect eof
     }
@@ -249,6 +407,9 @@ expect {
     }
 }
 EOF
+else
+    ssh $SERVER "cd /tmp && tar -xzf webnote_$TIMESTAMP.tar.gz && cd webnote_$TIMESTAMP && bash deploy-remote.sh && cd /tmp && rm -rf webnote_$TIMESTAMP && rm -f webnote_$TIMESTAMP.tar.gz"
+fi
 
 echo -e "${GREEN}✓ 服务器部署完成${NC}"
 echo ""
@@ -285,10 +446,32 @@ fi
 echo ""
 
 # 7. 显示日志
-echo -e "${YELLOW}[7/7] 查看服务日志...${NC}"
-echo "查看PM2日志（Ctrl+C退出）："
-ssh "$SERVER" "pm2 logs webnote-backend --lines 50"
+echo -e "${YELLOW}[7/7] 查看服务状态...${NC}"
 
+if [ -n "$DEPLOY_PASSWORD" ]; then
+    PASSWORD="$DEPLOY_PASSWORD"
+    expect << EOF
+set timeout 30
+spawn ssh $SERVER "pm2 list"
+expect {
+    "password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    "Password:" {
+        send "$PASSWORD\r"
+        exp_continue
+    }
+    eof
+}
+EOF
+else
+    ssh "$SERVER" "pm2 list"
+fi
+
+echo ""
+echo "如需查看详细日志，请运行："
+echo "ssh $SERVER 'pm2 logs webnote-backend'"
 echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  部署完成！${NC}"

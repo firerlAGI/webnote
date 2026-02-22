@@ -3,28 +3,22 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { backupService } from '../../src/services/backup/BackupService'
-import { prisma } from '../setup'
+import { createBackupService } from '../../src/services/backup/BackupService'
+import { prisma, createTestUser, cleanupDatabase } from '../setup'
 
 describe('BackupService', () => {
   let testUserId: number
+  let backupService: ReturnType<typeof createBackupService>
 
   beforeEach(async () => {
-    // 创建测试用户
-    const user = await prisma.user.create({
-      data: {
-        username: `testuser_${Date.now()}`,
-        email: `test_${Date.now()}@example.com`,
-        password: 'hashed_password'
-      }
-    })
-    testUserId = user.id
+    await cleanupDatabase()
+    backupService = createBackupService(prisma)
+    const user = await createTestUser()
+    testUserId = user.user.id
   })
 
   afterEach(async () => {
-    // 清理测试数据
     await prisma.backup.deleteMany({ where: { user_id: testUserId } })
-    await prisma.user.delete({ where: { id: testUserId } })
   })
 
   describe('createBackup', () => {

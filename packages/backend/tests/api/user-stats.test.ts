@@ -1,18 +1,17 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { app } from '../../src/server'
-import { prisma, createTestUser } from '../setup'
+import { prisma, createTestUser, cleanupDatabase } from '../setup'
 
 describe('User Stats API', () => {
   let token: string
   let userId: number
 
   beforeEach(async () => {
-    // Create user
+    await cleanupDatabase()
     const { user, email } = await createTestUser()
     userId = user.id
     
-    // Login to get token
     const loginRes = await app.inject({
         method: 'POST',
         url: '/api/auth/login',
@@ -30,12 +29,11 @@ describe('User Stats API', () => {
   })
 
   it('should return correct stats', async () => {
-    // Create notes
     await prisma.note.create({
         data: {
             user_id: userId,
             title: 'Note 1',
-            content: 'Hello World', // 11 chars
+            content: 'Hello World',
             folder_id: null
         }
     })
@@ -44,12 +42,10 @@ describe('User Stats API', () => {
         data: {
             user_id: userId,
             title: 'Note 2',
-            content: 'Testing', // 7 chars
+            content: 'Testing',
             folder_id: null
         }
     })
-    
-    // Total: 18 chars. Active days: 1 (today).
 
     const response = await app.inject({
       method: 'GET',
@@ -66,12 +62,11 @@ describe('User Stats API', () => {
   })
   
   it('should include reviews in stats', async () => {
-      // Create a review
       await prisma.review.create({
           data: {
               user_id: userId,
               date: new Date(),
-              content: 'My Review', // 9 chars
+              content: 'My Review',
           }
       })
       
@@ -85,9 +80,6 @@ describe('User Stats API', () => {
   
       expect(response.statusCode).toBe(200)
       const data = response.json().data
-      // 18 from previous test (if DB not cleaned? beforeEach cleans DB)
-      // beforeEach calls cleanupDatabase.
-      // So here only Review exists.
       expect(data.totalWordCount).toBe(9)
       expect(data.activeDays).toBe(1)
   })

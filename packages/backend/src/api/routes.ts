@@ -1,5 +1,5 @@
 import { FastifyInstance, FastifyRequest } from 'fastify'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 import { prisma } from '../server.js'
 import fs from 'fs'
 import path from 'path'
@@ -90,6 +90,11 @@ const ensureUploadsDirectory = (): void => {
 }
 
 export async function routes(app: FastifyInstance) {
+  // Health check route
+  app.get('/health', async () => {
+    return { status: 'ok', timestamp: new Date().toISOString() }
+  })
+
   // Public routes
   app.get('/', async () => {
     return { hello: 'world' }

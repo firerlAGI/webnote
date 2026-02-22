@@ -321,19 +321,26 @@ export class QueueService {
         const operationId = uuidv4()
         queue_ids.push(operationId)
 
-        await this.prisma.$executeRaw`
-          INSERT INTO "SyncQueue" (
-            id, user_id, device_id, client_id,
-            operation_type, entity_type, entity_data, entity_id,
-            priority, retry_count, max_retries, status,
-            created_at, updated_at, scheduled_at
-          ) VALUES (
-            ${operationId}, ${user_id}, ${device_id}, ${client_id},
-            ${op.type}, ${op.entity_type}, ${JSON.stringify(op.data)}::jsonb, ${op.entity_id || null},
-            ${priority}, 0, ${this.config.defaultMaxRetries}, 'pending',
-            ${now}, ${now}, ${scheduled_at || null}
-          )
-        `
+        // 使用 Prisma 的 create 方法替代原生 SQL，确保数据库兼容性
+        await this.prisma.syncQueue.create({
+          data: {
+            id: operationId,
+            user_id,
+            device_id,
+            client_id,
+            operation_type: op.type,
+            entity_type: op.entity_type,
+            entity_data: JSON.stringify(op.data),
+            entity_id: op.entity_id || null,
+            priority,
+            retry_count: 0,
+            max_retries: this.config.defaultMaxRetries,
+            status: 'pending',
+            created_at: now,
+            updated_at: now,
+            scheduled_at: scheduled_at ? new Date(scheduled_at) : null
+          }
+        })
       }
 
       this.logger.info({
@@ -362,11 +369,12 @@ export class QueueService {
    */
   async dequeue(user_id: number, limit: number = this.config.batchSize): Promise<QueuedSyncOperation[]> {
     try {
+      const now = new Date()
       const operations = await this.prisma.$queryRaw<QueuedSyncOperation[]>`
         SELECT * FROM "SyncQueue"
         WHERE user_id = ${user_id}
           AND status = 'pending'
-          AND (scheduled_at IS NULL OR scheduled_at <= NOW())
+          AND (scheduled_at IS NULL OR scheduled_at <= ${now})
         ORDER BY
           CASE priority
             WHEN 'high' THEN 1
@@ -379,14 +387,23 @@ export class QueueService {
 
       // 标记为处理中
       if (operations.length > 0) {
-        const operationIds = operations.map(op => op.id)
-        await this.prisma.$executeRaw`
-          UPDATE "SyncQueue"
-          SET status = 'processing',
-              updated_at = NOW(),
-              started_at = NOW()
-          WHERE id = ANY(${operationIds})
-        `
+        const nowUpdate = new Date()
+        
+        // 逐个更新操作状态，确保兼容性
+        for (const op of operations) {
+          await this.prisma.syncQueue.update({
+            where: { id: op.id },
+            data: {
+              status: 'processing',
+              updated_at: nowUpdate,
+              started_at: nowUpdate
+            }
+          })
+          // 更新返回的操作对象状态
+          op.status = 'processing'
+          op.updated_at = nowUpdate
+          op.started_at = nowUpdate
+        }
 
         // 添加到处理集合
         operations.forEach(op => this.processingSet.add(op.id))
@@ -409,11 +426,12 @@ export class QueueService {
    */
   async markAsCompleted(operationId: string): Promise<void> {
     try {
+      const now = new Date()
       await this.prisma.$executeRaw`
         UPDATE "SyncQueue"
         SET status = 'completed',
-            updated_at = NOW(),
-            completed_at = NOW()
+            updated_at = ${now},
+            completed_at = ${now}
         WHERE id = ${operationId}
       `
 
@@ -442,6 +460,7 @@ export class QueueService {
 
       const { retry_count, max_retries } = operation[0]
       const newRetryCount = retry_count + 1
+      const now = new Date()
 
       if (newRetryCount >= max_retries) {
         // 超过最大重试次数，标记为失败
@@ -450,8 +469,8 @@ export class QueueService {
           SET status = 'failed',
               retry_count = ${newRetryCount},
               error = ${error},
-              updated_at = NOW(),
-              completed_at = NOW()
+              updated_at = ${now},
+              completed_at = ${now}
           WHERE id = ${operationId}
         `
 
@@ -467,7 +486,7 @@ export class QueueService {
           SET status = 'pending',
               retry_count = ${newRetryCount},
               error = ${error},
-              updated_at = NOW()
+              updated_at = ${now}
           WHERE id = ${operationId}
         `
 
@@ -572,15 +591,15 @@ export class QueueService {
       }>>`
         SELECT
           COUNT(*) as total_operations,
-          COUNT(*) FILTER (WHERE status = 'pending') as pending_operations,
-          COUNT(*) FILTER (WHERE status = 'processing') as processing_operations,
-          COUNT(*) FILTER (WHERE status = 'completed') as completed_operations,
-          COUNT(*) FILTER (WHERE status = 'failed') as failed_operations,
-          COUNT(*) FILTER (WHERE status = 'pending' AND priority = 'high') as high_priority_count,
-          COUNT(*) FILTER (WHERE status = 'pending' AND priority = 'medium') as medium_priority_count,
-          COUNT(*) FILTER (WHERE status = 'pending' AND priority = 'low') as low_priority_count,
-          MIN(created_at) FILTER (WHERE status = 'pending') as oldest_pending_operation,
-          MAX(created_at) FILTER (WHERE status = 'pending') as newest_pending_operation
+          SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_operations,
+          SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_operations,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_operations,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_operations,
+          SUM(CASE WHEN status = 'pending' AND priority = 'high' THEN 1 ELSE 0 END) as high_priority_count,
+          SUM(CASE WHEN status = 'pending' AND priority = 'medium' THEN 1 ELSE 0 END) as medium_priority_count,
+          SUM(CASE WHEN status = 'pending' AND priority = 'low' THEN 1 ELSE 0 END) as low_priority_count,
+          MIN(CASE WHEN status = 'pending' THEN created_at ELSE NULL END) as oldest_pending_operation,
+          MAX(CASE WHEN status = 'pending' THEN created_at ELSE NULL END) as newest_pending_operation
         FROM "SyncQueue"
         WHERE user_id = ${user_id}
       `
@@ -688,14 +707,13 @@ export class QueueService {
         processing_count: bigint
       }>>`
         SELECT
-          COUNT(*) FILTER (WHERE status IN ('completed', 'failed')) as total_processed,
-          COUNT(*) FILTER (WHERE status = 'completed') as total_success,
-          COUNT(*) FILTER (WHERE status = 'failed') as total_failed,
-          AVG(EXTRACT(EPOCH FROM (completed_at - started_at)) * 1000) FILTER (
-            WHERE status = 'completed' AND completed_at IS NOT NULL AND started_at IS NOT NULL
-          ) as avg_processing_time,
-          AVG(retry_count) FILTER (WHERE status IN ('completed', 'failed')) as avg_retry_count,
-          COUNT(*) FILTER (WHERE status = 'processing') as processing_count
+          SUM(CASE WHEN status IN ('completed', 'failed') THEN 1 ELSE 0 END) as total_processed,
+          SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as total_success,
+          SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as total_failed,
+          AVG(CASE WHEN status = 'completed' AND completed_at IS NOT NULL AND started_at IS NOT NULL 
+            THEN (julianday(completed_at) - julianday(started_at)) * 86400000 ELSE NULL END) as avg_processing_time,
+          AVG(CASE WHEN status IN ('completed', 'failed') THEN retry_count ELSE NULL END) as avg_retry_count,
+          SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count
         FROM "SyncQueue"
         WHERE user_id = ${user_id}
       `
@@ -813,11 +831,12 @@ export class QueueService {
     try {
       // 重置处理中但超时的操作
       const timeoutThreshold = new Date(Date.now() - this.config.processingTimeout)
+      const now = new Date()
       await this.prisma.$executeRaw`
         UPDATE "SyncQueue"
         SET status = 'pending',
             retry_count = retry_count + 1,
-            updated_at = NOW(),
+            updated_at = ${now},
             started_at = NULL
         WHERE user_id = ${user_id}
           AND status = 'processing'

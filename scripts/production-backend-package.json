@@ -17,7 +17,7 @@
     "@fastify/websocket": "^10.0.0",
     "@fastify/multipart": "^8.0.0",
     "@prisma/client": "^5.4.0",
-    "bcrypt": "^5.1.0",
+    "bcryptjs": "^3.0.3",
     "zod": "^3.20.0",
     "ali-oss": "^6.18.0",
     "pino": "^8.16.0",

@@ -5,8 +5,8 @@
 
 import { PrismaClient } from '@prisma/client'
 import pino from 'pino'
-import { beforeEach, afterAll } from 'vitest'
-import bcrypt from 'bcrypt'
+import { beforeAll, afterAll } from 'vitest'
+import bcrypt from 'bcryptjs'
 
 // ============================================================================
 // 测试数据库客户端
@@ -39,26 +39,29 @@ export const logger = pino({
  * 清理测试数据
  */
 export async function cleanupDatabase() {
-  // 按照外键依赖顺序删除
-  await prisma.review.deleteMany({})
-  await prisma.note.deleteMany({})
-  await prisma.folder.deleteMany({})
-  await prisma.user.deleteMany({
-    where: {
-      email: {
-        startsWith: 'test_',
-      },
-    },
+  // 使用事务确保清理的原子性
+  await prisma.$transaction(async (tx) => {
+    // 删除所有数据（不依赖外键约束）
+    await tx.$executeRawUnsafe('DELETE FROM SyncQueue')
+    await tx.$executeRawUnsafe('DELETE FROM SyncOperation')
+    await tx.$executeRawUnsafe('DELETE FROM SyncSession')
+    await tx.$executeRawUnsafe('DELETE FROM SyncStatistics')
+    await tx.$executeRawUnsafe('DELETE FROM Backup')
+    await tx.$executeRawUnsafe('DELETE FROM Review')
+    await tx.$executeRawUnsafe('DELETE FROM Note')
+    await tx.$executeRawUnsafe('DELETE FROM Folder')
+    await tx.$executeRawUnsafe('DELETE FROM UserSettings')
+    await tx.$executeRawUnsafe("DELETE FROM User WHERE email LIKE 'test_%'")
   })
 }
 
-// 在每个测试前清理数据库
-beforeEach(async () => {
+// 在所有测试前清理数据库
+beforeAll(async () => {
   await cleanupDatabase()
 })
 
-// 在所有测试后关闭数据库连接
 afterAll(async () => {
+  await cleanupDatabase()
   await prisma.$disconnect()
 })
 
@@ -123,6 +126,14 @@ export async function createTestUsers(count: number) {
 export async function createTestFolder(userId: number, overrides: {
   name?: string
 } = {}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  })
+  
+  if (!user) {
+    throw new Error(`User with id ${userId} does not exist. Cannot create folder.`)
+  }
+  
   return prisma.folder.create({
     data: {
       user_id: userId,
@@ -140,6 +151,14 @@ export async function createTestNote(userId: number, overrides: {
   folder_id?: number
   is_pinned?: boolean
 } = {}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  })
+  
+  if (!user) {
+    throw new Error(`User with id ${userId} does not exist. Cannot create note.`)
+  }
+  
   const data: any = {
     user_id: userId,
     title: overrides.title || `Test Note ${Date.now()}`,
@@ -148,7 +167,12 @@ export async function createTestNote(userId: number, overrides: {
   }
 
   if (overrides.folder_id !== undefined) {
-    data.folder_id = overrides.folder_id
+    const folder = await prisma.folder.findFirst({
+      where: { id: overrides.folder_id, user_id: userId },
+    })
+    if (folder) {
+      data.folder_id = overrides.folder_id
+    }
   }
 
   return prisma.note.create({
@@ -164,6 +188,14 @@ export async function createTestReview(userId: number, overrides: {
   content?: string
   mood?: number
 } = {}) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  })
+  
+  if (!user) {
+    throw new Error(`User with id ${userId} does not exist. Cannot create review.`)
+  }
+  
   return prisma.review.create({
     data: {
       user_id: userId,
@@ -198,12 +230,15 @@ export async function createTestData(userId: number, counts: {
   const noteCount = counts.notes || 5
   for (let i = 0; i < noteCount; i++) {
     const folder = folders.length > 0 ? folders[i % folders.length] : null
-    notes.push(await createTestNote(userId, {
+    const noteData: any = {
       title: `Test Note ${i + 1}`,
       content: `Test content for note ${i + 1}`,
-      folder_id: folder?.id,
       is_pinned: i < 2, // 前两个笔记置顶
-    }))
+    }
+    if (folder) {
+      noteData.folder_id = folder.id
+    }
+    notes.push(await createTestNote(userId, noteData))
   }
 
   // 创建复盘记录

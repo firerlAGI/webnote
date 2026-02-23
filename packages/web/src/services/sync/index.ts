@@ -105,3 +105,17 @@ export {
   type PollingErrorHandler,
   type HTTPPollingStats
 } from './HTTPPollingClient'
+
+// Recovery Sync
+export { RecoverySync, default as RecoverySyncDefault, RecoverySyncError } from './RecoverySync'
+export {
+  type MergeStrategy,
+  type RecoveryResult,
+  type BatchUploadResult,
+  type RecoverySyncResult,
+  type RecoveryProgress,
+  type RecoveryProgressCallback,
+  type RecoveryCallback,
+  type RecoverySyncConfig,
+  DEFAULT_RECOVERY_SYNC_CONFIG
+} from './RecoverySync'

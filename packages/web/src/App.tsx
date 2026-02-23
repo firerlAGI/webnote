@@ -96,7 +96,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <DataProvider>
+    <DataProvider userId={user?.id ?? null}>
       {!booted && <BootSequence onComplete={() => setBooted(true)} />}
       <div className={booted ? 'opacity-100 transition-opacity duration-1000' : 'opacity-0'}>
         {loading ? (

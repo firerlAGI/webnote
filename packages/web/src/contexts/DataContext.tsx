@@ -15,6 +15,7 @@ interface DataContextType {
   addReview: (review: Omit<DailyReview, 'id'>) => Promise<void>;
   updateFolder: (id: number, name: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  clearData: () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -38,16 +39,29 @@ const transformFolder = (folder: any): MockFolder => ({
   icon: 'folder' // Default icon
 });
 
-export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+interface DataProviderProps {
+  children: React.ReactNode;
+  userId: number | null;
+}
+
+export const DataProvider: React.FC<DataProviderProps> = ({ children, userId }) => {
   const [notes, setNotes] = useState<NoteExtended[]>([]);
   const [reviews, setReviews] = useState<DailyReview[]>([]);
   const [folders, setFolders] = useState<MockFolder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Refs for debouncing updates
+  const prevUserIdRef = useRef<number | null>(null);
   const updateTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   const pendingUpdates = useRef<Record<number, Partial<NoteExtended>>>({});
+
+  const clearData = () => {
+    setNotes([]);
+    setReviews([]);
+    setFolders([]);
+    setError(null);
+    setIsLoading(false);
+  };
 
   const refreshData = async () => {
     setIsLoading(true);
@@ -90,10 +104,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Initial load
   useEffect(() => {
-    refreshData();
-  }, []);
+    if (userId === null) {
+      clearData();
+    } else if (prevUserIdRef.current !== userId) {
+      clearData();
+      refreshData();
+    }
+    prevUserIdRef.current = userId;
+  }, [userId]);
 
   // Actions
   const addNote = async (noteData: Omit<NoteExtended, 'id' | 'updatedAt'>) => {
@@ -203,7 +222,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deleteNote, 
       addReview, 
       updateFolder,
-      refreshData
+      refreshData,
+      clearData
     }}>
       {children}
     </DataContext.Provider>

@@ -12,6 +12,16 @@ export {
   WebSocketSyncError
 } from './WebSocketClient'
 
+// HTTP Polling Client
+export { HTTPPollingClient, default as HTTPPollingClientDefault } from './HTTPPollingClient'
+export {
+  HTTPPollingError,
+  HTTPPollingAuthError,
+  HTTPPollingRateLimitError,
+  HTTPPollingNetworkError,
+  DEFAULT_POLLING_CONFIG
+} from './HTTPPollingClient'
+
 // Types
 export {
   // Connection states
@@ -62,3 +72,15 @@ export {
   type EntityType,
   type SyncOperationType
 } from './types'
+
+// HTTP Polling Types
+export {
+  type PollingState,
+  type PollingStateChangeCallback,
+  type ServerPollingUpdate,
+  type PollingResponse,
+  type HTTPPollingConfig,
+  type PollingHandler,
+  type PollingErrorHandler,
+  type HTTPPollingStats
+} from './HTTPPollingClient'

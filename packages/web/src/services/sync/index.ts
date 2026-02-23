@@ -22,6 +22,15 @@ export {
   DEFAULT_POLLING_CONFIG
 } from './HTTPPollingClient'
 
+// Network Monitor
+export { NetworkMonitor, default as NetworkMonitorDefault } from './NetworkMonitor'
+export {
+  type NetworkState,
+  type NetworkCallback,
+  type NetworkMonitorConfig,
+  DEFAULT_NETWORK_MONITOR_CONFIG
+} from './NetworkMonitor'
+
 // Types
 export {
   // Connection states

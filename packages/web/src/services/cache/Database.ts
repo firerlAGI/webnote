@@ -368,8 +368,3 @@ export class DatabaseManager {
 // ============================================================================
 
 export default DatabaseManager
-export {
-  DatabaseError,
-  DatabaseConnectionError,
-  DatabaseMigrationError
-}

@@ -885,4 +885,3 @@ export class CacheConsistency {
 // ============================================================================
 
 export default CacheConsistency
-export { CacheConsistencyError }

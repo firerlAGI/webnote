@@ -962,9 +962,3 @@ export class WebSocketClient {
 // ============================================================================
 
 export default WebSocketClient
-export {
-  WebSocketConnectionError,
-  WebSocketAuthError,
-  WebSocketTimeoutError,
-  WebSocketSyncError
-}

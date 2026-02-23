@@ -31,6 +31,18 @@ export {
   DEFAULT_NETWORK_MONITOR_CONFIG
 } from './NetworkMonitor'
 
+// Offline Queue
+export { OfflineQueue, default as OfflineQueueDefault, OfflineQueueError } from './OfflineQueue'
+export {
+  type OperationInput,
+  type QueueStatus,
+  type QueueChangeType,
+  type QueueChange,
+  type QueueChangeCallback,
+  type OfflineQueueConfig,
+  DEFAULT_OFFLINE_QUEUE_CONFIG
+} from './OfflineQueue'
+
 // Types
 export {
   // Connection states
